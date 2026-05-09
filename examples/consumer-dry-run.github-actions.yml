@@ -1,0 +1,25 @@
+﻿name: AI Code Review Dry Run
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  ai-review-dry-run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate AI review action
+        uses: your-org/ai-review-action@main
+        with:
+          project-types: flutter
+          dry-run: 'true'
+          api-key: dry-run-placeholder

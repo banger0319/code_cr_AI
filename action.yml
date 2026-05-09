@@ -1,0 +1,81 @@
+﻿name: AI Code Review
+
+description: Run AI code review against the current Git diff with configurable rulesets and OpenAI-compatible models.
+
+inputs:
+  project-types:
+    description: Comma-separated ruleset folders to load, for example flutter, web, embedded, or web,embedded.
+    required: false
+    default: ''
+  extra-rulesets:
+    description: Comma-separated extra ruleset folders to load.
+    required: false
+    default: ''
+  rulesets-dir:
+    description: Rulesets root directory. Defaults to this action repository's rulesets directory.
+    required: false
+    default: ''
+  model:
+    description: Model name.
+    required: false
+    default: gpt-4.1-mini
+  base-url:
+    description: OpenAI-compatible API base URL.
+    required: false
+    default: https://api.openai.com/v1
+  endpoint:
+    description: Full chat completions endpoint. Overrides base-url when set.
+    required: false
+    default: ''
+  api-key:
+    description: API key for the model provider.
+    required: true
+  language:
+    description: Review output language.
+    required: false
+    default: zh-CN
+  max-diff-bytes:
+    description: Maximum diff bytes sent to the model.
+    required: false
+    default: '200000'
+  output:
+    description: Review report output path.
+    required: false
+    default: ai-review.md
+  fail-on-findings:
+    description: Whether to fail when findings are detected.
+    required: false
+    default: 'false'
+  strict-rulesets:
+    description: Whether missing ruleset directories should fail the action.
+    required: false
+    default: 'false'
+  dry-run:
+    description: Validate diff and rulesets without calling the model.
+    required: false
+    default: 'false'
+
+runs:
+  using: composite
+  steps:
+    - name: Ensure Node.js
+      shell: bash
+      run: node --version
+
+    - name: Run AI review
+      shell: bash
+      env:
+        AI_REVIEW_PROJECT_TYPES: ${{ inputs.project-types }}
+        AI_REVIEW_EXTRA_RULESETS: ${{ inputs.extra-rulesets }}
+        AI_REVIEW_RULESETS_DIR: ${{ inputs.rulesets-dir || format('{0}/rulesets', github.action_path) }}
+        AI_REVIEW_MODEL: ${{ inputs.model }}
+        AI_REVIEW_BASE_URL: ${{ inputs.base-url }}
+        AI_REVIEW_ENDPOINT: ${{ inputs.endpoint }}
+        AI_REVIEW_API_KEY: ${{ inputs.api-key }}
+        AI_REVIEW_LANGUAGE: ${{ inputs.language }}
+        AI_REVIEW_MAX_DIFF_BYTES: ${{ inputs.max-diff-bytes }}
+        AI_REVIEW_OUTPUT: ${{ inputs.output }}
+        AI_REVIEW_FAIL_ON_FINDINGS: ${{ inputs.fail-on-findings }}
+        AI_REVIEW_STRICT_RULESETS: ${{ inputs.strict-rulesets }}
+        AI_REVIEW_DRY_RUN: ${{ inputs.dry-run }}
+      run: node "${{ github.action_path }}/scripts/ai_review.js"

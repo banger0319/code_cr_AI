@@ -1,0 +1,35 @@
+﻿name: AI Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  ai-review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run AI review
+        uses: your-org/ai-review-action@main
+        with:
+          project-types: web
+          model: gpt-4.1-mini
+          base-url: https://api.openai.com/v1
+          api-key: ${{ secrets.OPENAI_API_KEY }}
+          output: ai-review.md
+
+      - name: Upload AI review report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ai-review
+          path: ai-review.md
