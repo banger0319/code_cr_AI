@@ -1,8 +1,3 @@
----
-skills:
-  - flutter-fix-layout-issues
----
-
 # Flutter / Dart 规则
 
 - 检查 `setState` 是否在组件销毁后调用，关注异步回调中的 `mounted` 判断。

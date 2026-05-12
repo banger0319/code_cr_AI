@@ -15,18 +15,6 @@ inputs:
     description: Optional rulesets root directory override. Defaults to this action repository's rulesets directory.
     required: false
     default: ''
-  skills:
-    description: Optional comma-separated skills to load from .agents/skills. Defaults to AI_REVIEW_SKILLS and ruleset declarations.
-    required: false
-    default: ''
-  skills-dirs:
-    description: Optional comma-separated extra skills directories. Built-in and caller .agents/skills are loaded by default.
-    required: false
-    default: ''
-  strict-skills:
-    description: Whether missing skills should fail the action.
-    required: false
-    default: 'false'
   model:
     description: Optional model override. Defaults to AI_REVIEW_MODEL from the caller environment, then script default.
     required: false
@@ -81,9 +69,6 @@ runs:
         AI_REVIEW_PROJECT_TYPES_INPUT: ${{ inputs.project-types }}
         AI_REVIEW_EXTRA_RULESETS_INPUT: ${{ inputs.extra-rulesets }}
         AI_REVIEW_RULESETS_DIR_INPUT: ${{ inputs.rulesets-dir || format('{0}/rulesets', github.action_path) }}
-        AI_REVIEW_SKILLS_INPUT: ${{ inputs.skills }}
-        AI_REVIEW_SKILLS_DIRS_INPUT: ${{ inputs.skills-dirs }}
-        AI_REVIEW_STRICT_SKILLS_INPUT: ${{ inputs.strict-skills }}
         AI_REVIEW_MODEL_INPUT: ${{ inputs.model }}
         AI_REVIEW_BASE_URL_INPUT: ${{ inputs.base-url }}
         AI_REVIEW_ENDPOINT_INPUT: ${{ inputs.endpoint }}
