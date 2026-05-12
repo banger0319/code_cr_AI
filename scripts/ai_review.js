@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
 
+
 function env(name, defaultValue = '') {
   return (process.env[name] || defaultValue).trim();
 }
@@ -10,6 +11,11 @@ function env(name, defaultValue = '') {
 function config(name, defaultValue = '') {
   const inputValue = env(`${name}_INPUT`);
   return inputValue || env(name, defaultValue);
+}
+
+function numberConfig(name, defaultValue) {
+  const value = Number(config(name, String(defaultValue)));
+  return Number.isFinite(value) && value > 0 ? value : defaultValue;
 }
 
 function splitCsv(value) {
@@ -23,6 +29,16 @@ function splitCsv(value) {
 function shellSplit(value) {
   const matches = value.match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) || [];
   return matches.map((item) => item.replace(/^['"]|['"]$/g, ''));
+}
+
+function globToRegExp(pattern) {
+  const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+  const regex = escaped.replace(/\*\*/g, '::DOUBLE_STAR::').replace(/\*/g, '[^/]*').replace(/::DOUBLE_STAR::/g, '.*');
+  return new RegExp(`^${regex}$`);
+}
+
+function normalizePath(filePath) {
+  return filePath.replace(/\\/g, '/').replace(/^a\//, '').replace(/^b\//, '');
 }
 
 function runGit(args) {
@@ -79,13 +95,87 @@ function detectDiff() {
   throw new Error('Unable to create git diff.');
 }
 
-function truncateDiff(diffText) {
-  const maxBytes = Number(config('AI_REVIEW_MAX_DIFF_BYTES', '200000'));
-  const buffer = Buffer.from(diffText, 'utf8');
-  if (buffer.length <= maxBytes) {
-    return { diffText, wasTruncated: false };
+function splitDiffByFile(diffText) {
+  const lines = diffText.split(/\r?\n/);
+  const files = [];
+  let current = null;
+  for (const line of lines) {
+    if (line.startsWith('diff --git ')) {
+      if (current) files.push(current);
+      const match = line.match(/^diff --git a\/(.*?) b\/(.*)$/);
+      const filePath = match ? normalizePath(match[2]) : 'unknown';
+      current = { filePath, lines: [line] };
+    } else if (current) {
+      current.lines.push(line);
+      if (line.startsWith('+++ b/')) current.filePath = normalizePath(line.slice(6));
+      if (line.startsWith('+++ /dev/null') && current.filePath === 'unknown') current.filePath = 'deleted-file';
+    } else if (line.trim()) {
+      current = { filePath: 'unknown', lines: [line] };
+    }
   }
-  return { diffText: buffer.subarray(0, maxBytes).toString('utf8'), wasTruncated: true };
+  if (current) files.push(current);
+  return files.map((file) => ({ ...file, text: file.lines.join('\n') }));
+}
+
+function shouldExclude(filePath, excludeMatchers) {
+  const normalized = normalizePath(filePath);
+  return excludeMatchers.some((matcher) => matcher.test(normalized) || matcher.test(path.basename(normalized)));
+}
+
+function filterDiffFiles(diffFiles) {
+  const patterns = splitCsv(config('AI_REVIEW_EXCLUDE_PATHS', ''));
+  const excludeMatchers = patterns.map(globToRegExp);
+  const reviewed = [];
+  const skipped = [];
+  for (const file of diffFiles) {
+    if (shouldExclude(file.filePath, excludeMatchers)) {
+      skipped.push(file.filePath);
+    } else {
+      reviewed.push(file);
+    }
+  }
+  return { reviewed, skipped };
+}
+
+function chunkDiffFiles(diffFiles) {
+  const chunkBytes = numberConfig('AI_REVIEW_CHUNK_BYTES', 60000);
+  const maxChunks = numberConfig('AI_REVIEW_MAX_CHUNKS', 20);
+  const chunks = [];
+  let currentFiles = [];
+  let currentText = '';
+
+  for (const file of diffFiles) {
+    const fileText = `${file.text}\n`;
+    const fileBytes = Buffer.byteLength(fileText, 'utf8');
+    if (currentText && Buffer.byteLength(currentText, 'utf8') + fileBytes > chunkBytes) {
+      chunks.push({ text: currentText, files: currentFiles });
+      currentText = '';
+      currentFiles = [];
+    }
+
+    if (fileBytes > chunkBytes) {
+      const lines = fileText.split(/\r?\n/);
+      let partial = '';
+      let part = 1;
+      for (const line of lines) {
+        const next = `${partial}${line}\n`;
+        if (partial && Buffer.byteLength(next, 'utf8') > chunkBytes) {
+          chunks.push({ text: partial, files: [`${file.filePath}#part${part}`] });
+          partial = '';
+          part += 1;
+        }
+        partial += `${line}\n`;
+      }
+      if (partial.trim()) chunks.push({ text: partial, files: [`${file.filePath}#part${part}`] });
+      continue;
+    }
+
+    currentText += fileText;
+    currentFiles.push(file.filePath);
+  }
+
+  if (currentText.trim()) chunks.push({ text: currentText, files: currentFiles });
+  return { chunks: chunks.slice(0, maxChunks), omittedChunks: Math.max(0, chunks.length - maxChunks), totalChunks: chunks.length };
 }
 
 function walkMarkdownFiles(dir) {
@@ -132,11 +222,12 @@ function readRules(root) {
   return { rules: sections.join('\n\n'), missing, loadedFiles };
 }
 
-function buildMessages(rules, diffText, wasTruncated) {
+function buildMessages(rules, diffText, wasTruncated, chunkInfo) {
   const language = config('AI_REVIEW_LANGUAGE', 'zh-CN');
   const truncationNote = wasTruncated
-    ? 'Diff was truncated because it exceeded AI_REVIEW_MAX_DIFF_BYTES.'
-    : 'Diff is complete.';
+    ? 'Diff was truncated because it exceeded the configured review chunk limits.'
+    : 'Diff chunk is complete.';
+  const chunkNote = chunkInfo ? `Chunk ${chunkInfo.index}/${chunkInfo.total}. Files: ${chunkInfo.files.join(', ') || 'unknown'}.` : '';
   const system = `You are a senior code reviewer. Review only the supplied git diff. Respond in ${language}.
 Use the supplied markdown rules as mandatory review criteria.
 For every finding, use this exact format:
@@ -147,7 +238,7 @@ For every finding, use this exact format:
 - Fix: concrete suggested fix
 Severity definition: P0 blocks release or causes critical security/data-loss/runtime failure; P1 is high-risk correctness, security, compatibility, or maintainability issue; P2 is medium risk; P3 is minor/nit.
 Do not invent files or issues not supported by the diff. If no substantive issue exists, say no blocking findings.`;
-  const user = `# Review Rules\n\n${rules || 'No custom rules were provided.'}\n\n# Diff Context\n\n${truncationNote}\n\n\`\`\`diff\n${diffText}\n\`\`\``;
+  const user = `# Review Rules\n\n${rules || 'No custom rules were provided.'}\n\n# Diff Context\n\n${chunkNote}\n${truncationNote}\n\n\`\`\`diff\n${diffText}\n\`\`\``;
   return [
     { role: 'system', content: system },
     { role: 'user', content: user },
@@ -169,7 +260,8 @@ async function callModel(messages) {
   if (maxTokens) payload.max_tokens = Number(maxTokens);
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), Number(config('AI_REVIEW_TIMEOUT_SECONDS', '120')) * 1000);
+  const timeoutSeconds = numberConfig('AI_REVIEW_TIMEOUT_SECONDS', 600);
+  const timeout = setTimeout(() => controller.abort(), timeoutSeconds * 1000);
   try {
     const response = await fetch(endpoint, {
       method: 'POST',
@@ -190,9 +282,88 @@ async function callModel(messages) {
       throw new Error(`Unexpected model response: ${text.slice(0, 1000)}`);
     }
     return content.trim();
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      throw new Error(`AI model request timed out after ${timeoutSeconds} seconds. Reduce diff size or increase AI_REVIEW_TIMEOUT_SECONDS.`);
+    }
+    throw error;
   } finally {
     clearTimeout(timeout);
   }
+}
+
+async function runWithConcurrency(items, concurrency, worker) {
+  const results = new Array(items.length);
+  let nextIndex = 0;
+  async function runWorker() {
+    while (nextIndex < items.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      results[index] = await worker(items[index], index);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, runWorker));
+  return results;
+}
+
+async function reviewChunks(rules, chunks, omittedChunks) {
+  if (chunks.length === 0) return [];
+  const concurrency = numberConfig('AI_REVIEW_CONCURRENCY', 3);
+  return runWithConcurrency(chunks, concurrency, async (chunk, index) => {
+    console.log(`Reviewing diff chunk ${index + 1}/${chunks.length} (${chunk.files.join(', ') || 'unknown'})`);
+    const wasTruncated = omittedChunks > 0 && index === chunks.length - 1;
+    const content = await callModel(buildMessages(rules, chunk.text, wasTruncated, {
+      index: index + 1,
+      total: chunks.length,
+      files: chunk.files,
+    }));
+    return { index: index + 1, files: chunk.files, content };
+  });
+}
+
+function buildDryRunReport(loadedFiles, chunks, skippedFiles, omittedChunks, totalChunks) {
+  return [
+    '# AI Code Review Dry Run',
+    '',
+    'Rules loaded successfully. Model call skipped.',
+    '',
+    `Planned chunks: ${chunks.length}/${totalChunks}`,
+    `Skipped files: ${skippedFiles.length}`,
+    `Omitted chunks: ${omittedChunks}`,
+    '',
+  ].join('\n');
+}
+
+function buildCombinedReport(chunkReports, metadata) {
+  const parts = [
+    '# AI Code Review',
+    '',
+    `Max Severity: ${maxSeverity(chunkReports.map((item) => item.content))}`,
+    `Reviewed Chunks: ${chunkReports.length}/${metadata.totalChunks}`,
+    `Skipped Files: ${metadata.skippedFiles.length}`,
+    `Omitted Chunks: ${metadata.omittedChunks}`,
+    '',
+  ];
+
+  if (metadata.omittedChunks > 0) {
+    parts.push('> Some diff chunks were omitted because AI_REVIEW_MAX_CHUNKS was reached. Consider splitting the change.', '');
+  }
+  if (metadata.skippedFiles.length > 0) {
+    parts.push('## Skipped Files', '', ...metadata.skippedFiles.map((file) => `- \`${file}\``), '');
+  }
+  for (const report of chunkReports) {
+    parts.push(`## Chunk ${report.index}`, '', `Files: ${report.files.map((file) => `\`${file}\``).join(', ') || 'unknown'}`, '', report.content, '');
+  }
+  return parts.join('\n');
+}
+
+function maxSeverity(reports) {
+  const order = ['P0', 'P1', 'P2', 'P3'];
+  const text = reports.join('\n');
+  for (const severity of order) {
+    if (new RegExp(`(^|[^A-Z0-9])${severity}([^A-Z0-9]|$)`, 'i').test(text)) return severity;
+  }
+  return 'none';
 }
 
 function printReviewToLog(review) {
@@ -215,16 +386,19 @@ async function main() {
   const root = config('AI_REVIEW_RULESETS_DIR', path.join(process.cwd(), 'rulesets'));
   const output = config('AI_REVIEW_OUTPUT', 'ai-review.md');
   const { rules, missing, loadedFiles } = readRules(root);
-  const { diffText, wasTruncated } = truncateDiff(detectDiff());
+  const diffText = detectDiff();
+  const diffFiles = splitDiffByFile(diffText);
+  const { reviewed, skipped } = filterDiffFiles(diffFiles);
+  const { chunks, omittedChunks, totalChunks } = chunkDiffFiles(reviewed);
 
   let review;
-  if (!diffText.trim()) {
-    review = '# AI Code Review\n\nNo diff detected.';
+  if (!diffText.trim() || chunks.length === 0) {
+    review = '# AI Code Review\n\nNo reviewable diff detected.';
   } else if (config('AI_REVIEW_DRY_RUN', 'false').toLowerCase() === 'true') {
-    review = '# AI Code Review Dry Run\n\nRules loaded successfully. Model call skipped.';
+    review = buildDryRunReport(loadedFiles, chunks, skipped, omittedChunks, totalChunks);
   } else {
-    const reviewBody = await callModel(buildMessages(rules, diffText, wasTruncated));
-    review = `# AI Code Review\n\n${reviewBody}\n`;
+    const chunkReports = await reviewChunks(rules, chunks, omittedChunks);
+    review = buildCombinedReport(chunkReports, { skippedFiles: skipped, omittedChunks, totalChunks });
   }
 
   if (loadedFiles.length > 0) {

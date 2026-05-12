@@ -35,10 +35,26 @@ inputs:
     description: Review output language.
     required: false
     default: zh-CN
-  max-diff-bytes:
-    description: Maximum diff bytes sent to the model.
+  chunk-bytes:
+    description: Maximum bytes per AI review chunk.
     required: false
-    default: '200000'
+    default: ''
+  max-chunks:
+    description: Maximum number of diff chunks to review.
+    required: false
+    default: ''
+  concurrency:
+    description: Maximum concurrent model requests.
+    required: false
+    default: ''
+  exclude-paths:
+    description: Comma-separated diff path globs to exclude from review. Empty by default; configure in the target repository when needed.
+    required: false
+    default: ''
+  timeout-seconds:
+    description: Model request timeout in seconds.
+    required: false
+    default: ''
   output:
     description: Review report output path.
     required: false
@@ -74,7 +90,11 @@ runs:
         AI_REVIEW_ENDPOINT_INPUT: ${{ inputs.endpoint }}
         AI_REVIEW_API_KEY_INPUT: ${{ inputs.api-key }}
         AI_REVIEW_LANGUAGE_INPUT: ${{ inputs.language }}
-        AI_REVIEW_MAX_DIFF_BYTES_INPUT: ${{ inputs.max-diff-bytes }}
+        AI_REVIEW_CHUNK_BYTES_INPUT: ${{ inputs.chunk-bytes }}
+        AI_REVIEW_MAX_CHUNKS_INPUT: ${{ inputs.max-chunks }}
+        AI_REVIEW_CONCURRENCY_INPUT: ${{ inputs.concurrency }}
+        AI_REVIEW_EXCLUDE_PATHS_INPUT: ${{ inputs.exclude-paths }}
+        AI_REVIEW_TIMEOUT_SECONDS_INPUT: ${{ inputs.timeout-seconds }}
         AI_REVIEW_OUTPUT_INPUT: ${{ inputs.output }}
         AI_REVIEW_FAIL_ON_FINDINGS_INPUT: ${{ inputs.fail-on-findings }}
         AI_REVIEW_STRICT_RULESETS_INPUT: ${{ inputs.strict-rulesets }}
