@@ -1,0 +1,35 @@
+.agents/skills/frontend-review/SKILL.md
+  s_651772c7e6f26b::t_1f481125fb0a99 1
+  s_651772c7e6f26b::t_3213a8455d1ae5 2-11
+rulesets/web/review.md
+  s_651772c7e6f26b::t_caeb4e0e09bb44 1-7
+README.md
+  s_651772c7e6f26b::t_1f481125fb0a99 10-13,23,108-158,170,179,202-211,219-221,231
+rulesets/flutter/review.md
+  s_651772c7e6f26b::t_301b89fc9dbbc0 1-6
+scripts/ai_review.js
+  s_651772c7e6f26b::t_c03edb46a3450b 23-26,109-137,149,159,167-202,205,212,221,288-290,297,299,306-310
+action.yml
+  s_651772c7e6f26b::t_134e09cbdb7076 18-29,84-86
+.agents/skills/security-review/SKILL.md
+  s_651772c7e6f26b::t_1f481125fb0a99 1
+  s_651772c7e6f26b::t_3213a8455d1ae5 2-11
+.agents/skills/flutter-fix-layout-issues/SKILL.md
+  s_651772c7e6f26b::t_301b89fc9dbbc0 1-12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "ce79e7a964cc1cf6c5cc9c51bbff40937cd66908",
+  "prompts": {},
+  "sessions": {
+    "s_651772c7e6f26b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e0abd-c79c-76e3-8499-1376efffbe30",
+        "model": "gpt-5.5"
+      },
+      "human_author": "陈泽枫 <zefeng.chen@gl-inet.com>"
+    }
+  }
+}
