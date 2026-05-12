@@ -1,0 +1,21 @@
+scripts/ai_review.js
+  s_651772c7e6f26b::t_7869a47377356a 166-248,287,291,299-300,350,391,400,431-433,435,464
+README.md
+  s_651772c7e6f26b::t_bc06a43c2705c6 3-4,45,47,49-50,57,66-68,70,77-81,83-84,86-87,89,91-107
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "25b22e8f4c9172f3e2d72c608e6aa031d3f801e7",
+  "prompts": {},
+  "sessions": {
+    "s_651772c7e6f26b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e0abd-c79c-76e3-8499-1376efffbe30",
+        "model": "gpt-5.5"
+      },
+      "human_author": "陈泽枫 <zefeng.chen@gl-inet.com>"
+    }
+  }
+}
