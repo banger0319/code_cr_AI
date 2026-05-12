@@ -1,4 +1,10 @@
-﻿# Web / Frontend 规则
+---
+skills:
+  - frontend-review
+  - security-review
+---
+
+# Web / Frontend 规则
 
 - 检查 XSS、开放重定向、敏感信息暴露、鉴权绕过和 CSRF 风险。
 - 检查异步请求的 loading/error/empty 状态是否完整。
