@@ -7,6 +7,11 @@ function env(name, defaultValue = '') {
   return (process.env[name] || defaultValue).trim();
 }
 
+function config(name, defaultValue = '') {
+  const inputValue = env(`${name}_INPUT`);
+  return inputValue || env(name, defaultValue);
+}
+
 function splitCsv(value) {
   return value
     .replace(/;/g, ',')
@@ -75,7 +80,7 @@ function detectDiff() {
 }
 
 function truncateDiff(diffText) {
-  const maxBytes = Number(env('AI_REVIEW_MAX_DIFF_BYTES', '200000'));
+  const maxBytes = Number(config('AI_REVIEW_MAX_DIFF_BYTES', '200000'));
   const buffer = Buffer.from(diffText, 'utf8');
   if (buffer.length <= maxBytes) {
     return { diffText, wasTruncated: false };
@@ -90,7 +95,7 @@ function walkMarkdownFiles(dir) {
     const fullPath = path.join(dir, entry.name);
     if (entry.isDirectory()) {
       result.push(...walkMarkdownFiles(fullPath));
-    } else if (entry.isFile() && entry.name.endsWith('.md')) {
+    } else if (entry.isFile() && entry.name.toLowerCase().endsWith('.md')) {
       result.push(fullPath);
     }
   }
@@ -99,14 +104,15 @@ function walkMarkdownFiles(dir) {
 
 function rulesetDirs(root) {
   return [
-    ...splitCsv(env('AI_REVIEW_PROJECT_TYPES', '')),
-    ...splitCsv(env('AI_REVIEW_EXTRA_RULESETS', '')),
+    ...splitCsv(config('AI_REVIEW_PROJECT_TYPES', '')),
+    ...splitCsv(config('AI_REVIEW_EXTRA_RULESETS', '')),
   ].map((item) => path.join(root, item));
 }
 
 function readRules(root) {
   const sections = [];
   const missing = [];
+  const loadedFiles = [];
   for (const rulesDir of rulesetDirs(root)) {
     if (!fs.existsSync(rulesDir)) {
       missing.push(rulesDir);
@@ -115,22 +121,32 @@ function readRules(root) {
     for (const filePath of walkMarkdownFiles(rulesDir)) {
       const content = fs.readFileSync(filePath, 'utf8').trim();
       if (content) {
+        loadedFiles.push(path.relative(root, filePath));
         sections.push(`## ${path.relative(root, filePath)}\n\n${content}`);
       }
     }
   }
-  if (missing.length > 0 && env('AI_REVIEW_STRICT_RULESETS', 'false').toLowerCase() === 'true') {
+  if (missing.length > 0 && config('AI_REVIEW_STRICT_RULESETS', 'false').toLowerCase() === 'true') {
     throw new Error(`Missing rulesets: ${missing.join(', ')}`);
   }
-  return { rules: sections.join('\n\n'), missing };
+  return { rules: sections.join('\n\n'), missing, loadedFiles };
 }
 
 function buildMessages(rules, diffText, wasTruncated) {
-  const language = env('AI_REVIEW_LANGUAGE', 'zh-CN');
+  const language = config('AI_REVIEW_LANGUAGE', 'zh-CN');
   const truncationNote = wasTruncated
     ? 'Diff was truncated because it exceeded AI_REVIEW_MAX_DIFF_BYTES.'
     : 'Diff is complete.';
-  const system = `You are a senior code reviewer. Review only the supplied git diff.\nRespond in ${language}. Prioritize correctness, security, maintainability, performance, and project-specific rules.\nDo not invent files or issues not supported by the diff.\nFor each finding include severity, file/path if visible, reason, and suggested fix.\nIf no substantive issue exists, say so clearly.`;
+  const system = `You are a senior code reviewer. Review only the supplied git diff. Respond in ${language}.
+Use the supplied markdown rules as mandatory review criteria.
+For every finding, use this exact format:
+- Severity: P0|P1|P2|P3
+- File: path or unknown
+- Rule: violated rule summary
+- Reason: concise reason based on the diff
+- Fix: concrete suggested fix
+Severity definition: P0 blocks release or causes critical security/data-loss/runtime failure; P1 is high-risk correctness, security, compatibility, or maintainability issue; P2 is medium risk; P3 is minor/nit.
+Do not invent files or issues not supported by the diff. If no substantive issue exists, say no blocking findings.`;
   const user = `# Review Rules\n\n${rules || 'No custom rules were provided.'}\n\n# Diff Context\n\n${truncationNote}\n\n\`\`\`diff\n${diffText}\n\`\`\``;
   return [
     { role: 'system', content: system },
@@ -139,21 +155,21 @@ function buildMessages(rules, diffText, wasTruncated) {
 }
 
 async function callModel(messages) {
-  const apiKey = env('AI_REVIEW_API_KEY');
+  const apiKey = config('AI_REVIEW_API_KEY');
   if (!apiKey) throw new Error('AI_REVIEW_API_KEY is required');
 
-  const baseUrl = env('AI_REVIEW_BASE_URL', 'https://api.openai.com/v1').replace(/\/$/, '');
-  const endpoint = env('AI_REVIEW_ENDPOINT', `${baseUrl}/chat/completions`);
+  const baseUrl = config('AI_REVIEW_BASE_URL', 'https://api.openai.com/v1').replace(/\/$/, '');
+  const endpoint = config('AI_REVIEW_ENDPOINT', `${baseUrl}/chat/completions`);
   const payload = {
-    model: env('AI_REVIEW_MODEL', 'gpt-4.1-mini'),
+    model: config('AI_REVIEW_MODEL', 'gpt-4.1-mini'),
     messages,
-    temperature: Number(env('AI_REVIEW_TEMPERATURE', '0.1')),
+    temperature: Number(config('AI_REVIEW_TEMPERATURE', '0.1')),
   };
-  const maxTokens = env('AI_REVIEW_MAX_TOKENS');
+  const maxTokens = config('AI_REVIEW_MAX_TOKENS');
   if (maxTokens) payload.max_tokens = Number(maxTokens);
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), Number(env('AI_REVIEW_TIMEOUT_SECONDS', '120')) * 1000);
+  const timeout = setTimeout(() => controller.abort(), Number(config('AI_REVIEW_TIMEOUT_SECONDS', '120')) * 1000);
   try {
     const response = await fetch(endpoint, {
       method: 'POST',
@@ -179,22 +195,29 @@ async function callModel(messages) {
   }
 }
 
+function hasBlockingSeverity(review) {
+  return /(^|[^A-Z0-9])(P0|P1)([^A-Z0-9]|$)/i.test(review);
+}
+
 async function main() {
-  const root = env('AI_REVIEW_RULESETS_DIR', path.join(process.cwd(), 'rulesets'));
-  const output = env('AI_REVIEW_OUTPUT', 'ai-review.md');
-  const { rules, missing } = readRules(root);
+  const root = config('AI_REVIEW_RULESETS_DIR', path.join(process.cwd(), 'rulesets'));
+  const output = config('AI_REVIEW_OUTPUT', 'ai-review.md');
+  const { rules, missing, loadedFiles } = readRules(root);
   const { diffText, wasTruncated } = truncateDiff(detectDiff());
 
   let review;
   if (!diffText.trim()) {
     review = '# AI Code Review\n\nNo diff detected.';
-  } else if (env('AI_REVIEW_DRY_RUN', 'false').toLowerCase() === 'true') {
+  } else if (config('AI_REVIEW_DRY_RUN', 'false').toLowerCase() === 'true') {
     review = '# AI Code Review Dry Run\n\nRules loaded successfully. Model call skipped.';
   } else {
     const reviewBody = await callModel(buildMessages(rules, diffText, wasTruncated));
     review = `# AI Code Review\n\n${reviewBody}\n`;
   }
 
+  if (loadedFiles.length > 0) {
+    review += `\n## Loaded Rule Files\n\n${loadedFiles.map((item) => `- \`${item}\``).join('\n')}\n`;
+  }
   if (missing.length > 0) {
     review += `\n## Missing Rulesets\n\n${missing.map((item) => `- \`${item}\``).join('\n')}\n`;
   }
@@ -202,11 +225,9 @@ async function main() {
   fs.writeFileSync(output, review, 'utf8');
   console.log(`AI review written to ${output}`);
 
-  if (env('AI_REVIEW_FAIL_ON_FINDINGS', 'false').toLowerCase() === 'true') {
-    const lowered = review.toLowerCase();
-    if (['severity', '涓ラ噸', '楂樺嵄', 'critical', 'major'].some((marker) => lowered.includes(marker))) {
-      process.exitCode = 1;
-    }
+  if (config('AI_REVIEW_FAIL_ON_FINDINGS', 'false').toLowerCase() === 'true' && hasBlockingSeverity(review)) {
+    console.error('Blocking AI review severity detected: P0/P1.');
+    process.exitCode = 1;
   }
 }
 

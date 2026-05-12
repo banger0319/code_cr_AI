@@ -1,35 +1,36 @@
-﻿name: AI Code Review
+name: AI Code Review
 
 description: Run AI code review against the current Git diff with configurable rulesets and OpenAI-compatible models.
 
 inputs:
   project-types:
-    description: Comma-separated ruleset folders to load, for example flutter, web, embedded, or web,embedded.
+    description: Optional ruleset folders override, for example flutter, web, embedded, or web,embedded. Defaults to AI_REVIEW_PROJECT_TYPES.
     required: false
     default: ''
   extra-rulesets:
-    description: Comma-separated extra ruleset folders to load.
+    description: Optional extra ruleset folders override. Defaults to AI_REVIEW_EXTRA_RULESETS.
     required: false
     default: ''
   rulesets-dir:
-    description: Rulesets root directory. Defaults to this action repository's rulesets directory.
+    description: Optional rulesets root directory override. Defaults to this action repository's rulesets directory.
     required: false
     default: ''
   model:
-    description: Model name.
+    description: Optional model override. Defaults to AI_REVIEW_MODEL from the caller environment, then script default.
     required: false
-    default: gpt-4.1-mini
+    default: ''
   base-url:
-    description: OpenAI-compatible API base URL.
+    description: Optional API base URL override. Defaults to AI_REVIEW_BASE_URL from the caller environment, then script default.
     required: false
-    default: https://api.openai.com/v1
+    default: ''
   endpoint:
-    description: Full chat completions endpoint. Overrides base-url when set.
+    description: Optional chat completions endpoint override. Defaults to AI_REVIEW_ENDPOINT, then base-url/chat/completions.
     required: false
     default: ''
   api-key:
-    description: API key for the model provider.
-    required: true
+    description: Optional API key override. Defaults to AI_REVIEW_API_KEY from the caller environment.
+    required: false
+    default: ''
   language:
     description: Review output language.
     required: false
@@ -43,7 +44,7 @@ inputs:
     required: false
     default: ai-review.md
   fail-on-findings:
-    description: Whether to fail when findings are detected.
+    description: Whether to fail when P0/P1 findings are detected.
     required: false
     default: 'false'
   strict-rulesets:
@@ -65,17 +66,17 @@ runs:
     - name: Run AI review
       shell: bash
       env:
-        AI_REVIEW_PROJECT_TYPES: ${{ inputs.project-types }}
-        AI_REVIEW_EXTRA_RULESETS: ${{ inputs.extra-rulesets }}
-        AI_REVIEW_RULESETS_DIR: ${{ inputs.rulesets-dir || format('{0}/rulesets', github.action_path) }}
-        AI_REVIEW_MODEL: ${{ inputs.model }}
-        AI_REVIEW_BASE_URL: ${{ inputs.base-url }}
-        AI_REVIEW_ENDPOINT: ${{ inputs.endpoint }}
-        AI_REVIEW_API_KEY: ${{ inputs.api-key }}
-        AI_REVIEW_LANGUAGE: ${{ inputs.language }}
-        AI_REVIEW_MAX_DIFF_BYTES: ${{ inputs.max-diff-bytes }}
-        AI_REVIEW_OUTPUT: ${{ inputs.output }}
-        AI_REVIEW_FAIL_ON_FINDINGS: ${{ inputs.fail-on-findings }}
-        AI_REVIEW_STRICT_RULESETS: ${{ inputs.strict-rulesets }}
-        AI_REVIEW_DRY_RUN: ${{ inputs.dry-run }}
+        AI_REVIEW_PROJECT_TYPES_INPUT: ${{ inputs.project-types }}
+        AI_REVIEW_EXTRA_RULESETS_INPUT: ${{ inputs.extra-rulesets }}
+        AI_REVIEW_RULESETS_DIR_INPUT: ${{ inputs.rulesets-dir || format('{0}/rulesets', github.action_path) }}
+        AI_REVIEW_MODEL_INPUT: ${{ inputs.model }}
+        AI_REVIEW_BASE_URL_INPUT: ${{ inputs.base-url }}
+        AI_REVIEW_ENDPOINT_INPUT: ${{ inputs.endpoint }}
+        AI_REVIEW_API_KEY_INPUT: ${{ inputs.api-key }}
+        AI_REVIEW_LANGUAGE_INPUT: ${{ inputs.language }}
+        AI_REVIEW_MAX_DIFF_BYTES_INPUT: ${{ inputs.max-diff-bytes }}
+        AI_REVIEW_OUTPUT_INPUT: ${{ inputs.output }}
+        AI_REVIEW_FAIL_ON_FINDINGS_INPUT: ${{ inputs.fail-on-findings }}
+        AI_REVIEW_STRICT_RULESETS_INPUT: ${{ inputs.strict-rulesets }}
+        AI_REVIEW_DRY_RUN_INPUT: ${{ inputs.dry-run }}
       run: node "${{ github.action_path }}/scripts/ai_review.js"

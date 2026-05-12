@@ -8,6 +8,10 @@ permissions:
   contents: read
   pull-requests: read
 
+env:
+  AI_REVIEW_PROJECT_TYPES: flutter
+  AI_REVIEW_API_KEY: dry-run-placeholder
+
 jobs:
   ai-review-dry-run:
     runs-on: ubuntu-latest
@@ -20,6 +24,4 @@ jobs:
       - name: Validate AI review action
         uses: your-org/ai-review-action@main
         with:
-          project-types: flutter
           dry-run: 'true'
-          api-key: dry-run-placeholder
