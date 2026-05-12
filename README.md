@@ -1,9 +1,7 @@
 # GitHub AI Code Review Action
 
-这个仓库提供一个可复用的 GitHub Action，用 AI 对触发项目的 Git diff 做 Code Review。业务项目只需要引用本 Action，并配置项目类型、模型地址和 API Key。
-
-## 最小接入示例
-
+杩欎釜浠撳簱鎻愪緵涓€涓彲澶嶇敤鐨?GitHub Action锛岀敤 AI 瀵硅Е鍙戦」鐩殑 Git diff 鍋?Code Review銆備笟鍔￠」鐩彧闇€瑕佸紩鐢ㄦ湰 Action锛屽苟閰嶇疆椤圭洰绫诲瀷銆佹ā鍨嬪湴鍧€鍜?API Key銆?
+## 鏈€灏忔帴鍏ョず渚?
 ```yaml
 name: AI Code Review
 
@@ -44,26 +42,19 @@ jobs:
           path: ai-review.md
 ```
 
-## 大 diff 处理
+## 澶?diff 澶勭悊
 
-大 diff 处理是内部实现细节，最终用户只会看到整理后的完整报告：
+澶?diff 澶勭悊鏄唴閮ㄥ疄鐜扮粏鑺傦紝鏈€缁堢敤鎴峰彧浼氱湅鍒版暣鐞嗗悗鐨勫畬鏁存姤鍛婏細
 
-- 内部按文件和大小拆分 diff，降低模型超时概率。
-- 默认最多处理 `20` 个内部分片，超出时最终报告提示“部分 diff 未被审查”。
-- 默认并发请求模型：`3`。
-- 默认模型请求超时：`600` 秒。
-- 最终报告统一整理为 `Summary`、`Blocking Findings`、`Non-Blocking Findings`、`Notes`。
-- 任一内部审查结果出现 `P0` 或 `P1`，且启用 `fail-on-findings: 'true'`，流水线失败。
-
-默认不排除任何文件。无需 CR 的文件类型建议由被 CR 项目按自身情况配置：
+- 鍐呴儴鎸夋枃浠跺拰澶у皬鎷嗗垎 diff锛岄檷浣庢ā鍨嬭秴鏃舵鐜囥€?- 榛樿鏈€澶氬鐞?`20` 涓唴閮ㄥ垎鐗囷紝瓒呭嚭鏃舵渶缁堟姤鍛婃彁绀衡€滈儴鍒?diff 鏈瀹℃煡鈥濄€?- 榛樿骞跺彂璇锋眰妯″瀷锛歚3`銆?- 榛樿妯″瀷璇锋眰瓒呮椂锛歚600` 绉掋€?- 鏈€缁堟姤鍛婄粺涓€鏁寸悊涓?`Summary`銆乣Blocking Findings`銆乣Non-Blocking Findings`銆乣Notes`銆?- 浠讳竴鍐呴儴瀹℃煡缁撴灉鍑虹幇 `P0` 鎴?`P1`锛屼笖鍚敤 `fail-on-findings: 'true'`锛屾祦姘寸嚎澶辫触銆?
+榛樿涓嶆帓闄や换浣曟枃浠躲€傛棤闇€ CR 鐨勬枃浠剁被鍨嬪缓璁敱琚?CR 椤圭洰鎸夎嚜韬儏鍐甸厤缃細
 
 ```yaml
 with:
   exclude-paths: 'package-lock.json,pnpm-lock.yaml,yarn.lock,dist/**,build/**,coverage/**,*.map,*.png,*.jpg,*.svg'
 ```
 
-如需覆盖内部处理策略，也可以配置：
-
+濡傞渶瑕嗙洊鍐呴儴澶勭悊绛栫暐锛屼篃鍙互閰嶇疆锛?
 ```yaml
 with:
   chunk-bytes: '60000'
@@ -72,62 +63,45 @@ with:
   timeout-seconds: '600'
 ```
 
-## 规则集机制
+## 瑙勫垯闆嗘満鍒?
+- `project-types` 鏀寔閫楀彿鍒嗛殧锛屼緥濡?`flutter`銆乣web`銆乣embedded`銆乣web,embedded`銆?- `project-types: web` 浼氳鍙?`rulesets/web` 涓嬫墍鏈?`.md` 鏂囦欢锛屽寘鎷瓙鐩綍銆?- 鍔犺浇椤哄簭鏄細椤圭洰绫诲瀷瑙勫垯 鈫?`extra-rulesets`銆?- `rulesets-dir` 榛樿鎸囧悜鏈?Action 浠撳簱鐨?`rulesets`锛屼篃鍙互鏀规垚璋冪敤鏂逛粨搴撳唴鐨勮鍒欑洰褰曘€?
+## 瑙勫垯鐩綍缁勭粐寤鸿
 
-- `project-types` 支持逗号分隔，例如 `flutter`、`web`、`embedded`、`web,embedded`。
-- `project-types: web` 会读取 `rulesets/web` 下所有 `.md` 文件，包括子目录。
-- 加载顺序是：项目类型规则 → `extra-rulesets`。
-- `rulesets-dir` 默认指向本 Action 仓库的 `rulesets`，也可以改成调用方仓库内的规则目录。
-
-## 规则目录组织建议
-
-技术栈文件夹下可以同时放强规则和专项能力文档，例如 Flutter：
-
+鎶€鏈爤鏂囦欢澶逛笅鍙互鍚屾椂鏀惧己瑙勫垯鍜屼笓椤硅兘鍔涙枃妗ｏ紝渚嬪 Flutter锛?
 ```text
 rulesets/flutter/review.md
 rulesets/flutter/skills/flutter-fix-layout-issues/SKILL.md
 rulesets/flutter/performance.md
 ```
 
-脚本不会区分“基础规则”和“专项能力文档”，只会递归读取 `rulesets/flutter/**/*.md`，全部作为评审规范发送给模型。
-
-## 输出与阻断
-
-CR 结果会同时出现在三个地方：
-
-1. GitHub Actions 日志中，搜索 `AI REVIEW REPORT START` 可以直接查看完整报告。
-2. GitHub Actions run 的 Step Summary 中，如果当前 runner 提供 `GITHUB_STEP_SUMMARY`。
-3. `ai-review.md` artifact 中，适合下载归档。
-
-模型被要求按以下等级输出问题：
-
+鑴氭湰涓嶄細鍖哄垎鈥滃熀纭€瑙勫垯鈥濆拰鈥滀笓椤硅兘鍔涙枃妗ｂ€濓紝鍙細閫掑綊璇诲彇 `rulesets/flutter/**/*.md`锛屽叏閮ㄤ綔涓鸿瘎瀹¤鑼冨彂閫佺粰妯″瀷銆?
+## 杈撳嚭涓庨樆鏂?
+CR 缁撴灉浼氬悓鏃跺嚭鐜板湪涓変釜鍦版柟锛?
+1. GitHub Actions 鏃ュ織涓紝鎼滅储 `AI REVIEW REPORT START` 鍙互鐩存帴鏌ョ湅瀹屾暣鎶ュ憡銆?2. GitHub Actions run 鐨?Step Summary 涓紝濡傛灉褰撳墠 runner 鎻愪緵 `GITHUB_STEP_SUMMARY`銆?3. `ai-review.md` artifact 涓紝閫傚悎涓嬭浇褰掓。銆?
+妯″瀷琚姹傛寜浠ヤ笅绛夌骇杈撳嚭闂锛?
 ```text
-P0: 阻断发布、严重安全问题、数据丢失、严重运行时故障
-P1: 高风险正确性、安全、兼容性或可维护性问题
-P2: 中风险问题
-P3: 轻微问题或建议
-```
+P0: 闃绘柇鍙戝竷銆佷弗閲嶅畨鍏ㄩ棶棰樸€佹暟鎹涪澶便€佷弗閲嶈繍琛屾椂鏁呴殰
+P1: 楂橀闄╂纭€с€佸畨鍏ㄣ€佸吋瀹规€ф垨鍙淮鎶ゆ€ч棶棰?P2: 涓闄╅棶棰?P3: 杞诲井闂鎴栧缓璁?```
 
-当配置 `fail-on-findings: 'true'` 时，最终报告中只要出现 `P0` 或 `P1`，Action 退出码为 1，流水线不通过。
+褰撻厤缃?`fail-on-findings: 'true'` 鏃讹紝鏈€缁堟姤鍛婁腑鍙鍑虹幇 `P0` 鎴?`P1`锛孉ction 閫€鍑虹爜涓?1锛屾祦姘寸嚎涓嶉€氳繃銆?
+## 杈撳叆鍙傛暟
 
-## 输入参数
-
-| Input | 默认值 | 说明 |
+| Input | 榛樿鍊?| 璇存槑 |
 | --- | --- | --- |
-| `project-types` | 空 | 项目类型规则目录，逗号分隔。 |
-| `extra-rulesets` | 空 | 额外规则目录，逗号分隔。 |
-| `rulesets-dir` | Action 仓库 `rulesets` | 规则集根目录。 |
-| `model` | 空 | 可选覆盖；默认读取 `AI_REVIEW_MODEL`，再使用脚本默认值。 |
-| `base-url` | 空 | 可选覆盖；默认读取 `AI_REVIEW_BASE_URL`，再使用脚本默认值。 |
-| `endpoint` | 空 | 可选覆盖；默认读取 `AI_REVIEW_ENDPOINT`，否则使用 `$AI_REVIEW_BASE_URL/chat/completions`。 |
-| `api-key` | 空 | 可选覆盖；默认读取 `AI_REVIEW_API_KEY`。 |
-| `language` | `zh-CN` | Review 输出语言。 |
-| `chunk-bytes` | `60000` | 内部单次模型审查的最大 diff 字节数。 |
-| `max-chunks` | `20` | 最多处理的内部 diff 分片数。 |
-| `concurrency` | `3` | 并发模型请求数。 |
-| `timeout-seconds` | `600` | 单次模型请求超时时间。 |
-| `exclude-paths` | 空 | 逗号分隔的过滤 glob，由被 CR 项目按需配置。 |
-| `output` | `ai-review.md` | 产物报告路径。 |
-| `fail-on-findings` | `false` | 是否在报告出现 `P0` 或 `P1` 时让 action 失败。 |
-| `strict-rulesets` | `false` | 规则集目录缺失时是否失败。 |
-| `dry-run` | `false` | 只验证规则、diff 分片和过滤，不调用模型。 |
+| `project-types` | 绌?| 椤圭洰绫诲瀷瑙勫垯鐩綍锛岄€楀彿鍒嗛殧銆?|
+| `extra-rulesets` | 绌?| 棰濆瑙勫垯鐩綍锛岄€楀彿鍒嗛殧銆?|
+| `rulesets-dir` | Action 浠撳簱 `rulesets` | 瑙勫垯闆嗘牴鐩綍銆?|
+| `model` | 绌?| 鍙€夎鐩栵紱榛樿璇诲彇 `AI_REVIEW_MODEL`锛屽啀浣跨敤鑴氭湰榛樿鍊笺€?|
+| `base-url` | 绌?| 鍙€夎鐩栵紱榛樿璇诲彇 `AI_REVIEW_BASE_URL`锛屽啀浣跨敤鑴氭湰榛樿鍊笺€?|
+| `endpoint` | 绌?| 鍙€夎鐩栵紱榛樿璇诲彇 `AI_REVIEW_ENDPOINT`锛屽惁鍒欎娇鐢?`$AI_REVIEW_BASE_URL/chat/completions`銆?|
+| `api-key` | 绌?| 鍙€夎鐩栵紱榛樿璇诲彇 `AI_REVIEW_API_KEY`銆?|
+| `language` | `zh-CN` | Review 杈撳嚭璇█銆?|
+| `chunk-bytes` | `60000` | 鍐呴儴鍗曟妯″瀷瀹℃煡鐨勬渶澶?diff 瀛楄妭鏁般€?|
+| `max-chunks` | `20` | 鏈€澶氬鐞嗙殑鍐呴儴 diff 鍒嗙墖鏁般€?|
+| `concurrency` | `3` | 骞跺彂妯″瀷璇锋眰鏁般€?|
+| `timeout-seconds` | `600` | 鍗曟妯″瀷璇锋眰瓒呮椂鏃堕棿銆?|
+| `exclude-paths` | 绌?| 閫楀彿鍒嗛殧鐨勮繃婊?glob锛岀敱琚?CR 椤圭洰鎸夐渶閰嶇疆銆?|
+| `output` | `ai-review.md` | 浜х墿鎶ュ憡璺緞銆?|
+| `fail-on-findings` | `false` | 鏄惁鍦ㄦ姤鍛婂嚭鐜?`P0` 鎴?`P1` 鏃惰 action 澶辫触銆?|
+| `strict-rulesets` | `false` | 瑙勫垯闆嗙洰褰曠己澶辨椂鏄惁澶辫触銆?|
+| `dry-run` | `false` | 鍙獙璇佽鍒欍€乨iff 鍒嗙墖鍜岃繃婊わ紝涓嶈皟鐢ㄦā鍨嬨€?|

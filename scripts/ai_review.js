@@ -163,6 +163,89 @@ function chunkDiffFiles(diffFiles) {
   return { chunks: chunks.slice(0, maxChunks), omittedChunks: Math.max(0, chunks.length - maxChunks), totalChunks: chunks.length };
 }
 
+function listRepositoryFiles() {
+  const output = tryRunGit(['ls-files']);
+  if (!output) return [];
+  return output.split(/\r?\n/).map(normalizePath).filter(Boolean).sort();
+}
+
+function resolveLocalImport(fromFile, specifier, repositoryFiles) {
+  if (!specifier.startsWith('.') && !specifier.startsWith('/')) return null;
+  const fromDir = path.posix.dirname(normalizePath(fromFile));
+  const base = normalizePath(path.posix.normalize(path.posix.join(fromDir, specifier)));
+  const candidates = [
+    base,
+    `${base}.js`, `${base}.jsx`, `${base}.ts`, `${base}.tsx`, `${base}.vue`, `${base}.dart`,
+    `${base}.json`, `${base}.mjs`, `${base}.cjs`,
+    `${base}/index.js`, `${base}/index.jsx`, `${base}/index.ts`, `${base}/index.tsx`, `${base}/index.vue`, `${base}/index.dart`,
+  ];
+  return candidates.find((candidate) => repositoryFiles.includes(candidate)) || null;
+}
+
+function extractLocalImportSpecifiers(diffText) {
+  const specs = [];
+  const lines = diffText.split(/\r?\n/);
+  for (const line of lines) {
+    if (!line.startsWith('+') || line.startsWith('+++')) continue;
+    const code = line.slice(1);
+    const patterns = [
+      /import\s+(?:[^'";]+\s+from\s+)?['"]([^'"]+)['"]/g,
+      /export\s+(?:[^'";]+\s+from\s+)?['"]([^'"]+)['"]/g,
+      /require\(\s*['"]([^'"]+)['"]\s*\)/g,
+      /import\(\s*['"]([^'"]+)['"]\s*\)/g,
+      /import\s+['"]([^'"]+)['"]/g,
+    ];
+    for (const pattern of patterns) {
+      for (const match of code.matchAll(pattern)) {
+        if (match[1] && (match[1].startsWith('.') || match[1].startsWith('/'))) specs.push(match[1]);
+      }
+    }
+  }
+  return specs;
+}
+
+function collectReferencedFiles(diffFiles, repositoryFiles) {
+  const maxFiles = numberConfig('AI_REVIEW_MAX_REFERENCED_FILES', 20);
+  const maxBytes = numberConfig('AI_REVIEW_MAX_REFERENCED_FILE_BYTES', 12000);
+  const referenced = [];
+  const seen = new Set();
+  for (const file of diffFiles) {
+    for (const specifier of extractLocalImportSpecifiers(file.text)) {
+      const resolved = resolveLocalImport(file.filePath, specifier, repositoryFiles);
+      if (!resolved || seen.has(resolved) || !fs.existsSync(resolved)) continue;
+      seen.add(resolved);
+      const content = fs.readFileSync(resolved, 'utf8');
+      referenced.push({
+        filePath: resolved,
+        content: Buffer.from(content, 'utf8').subarray(0, maxBytes).toString('utf8'),
+        truncated: Buffer.byteLength(content, 'utf8') > maxBytes,
+      });
+      if (referenced.length >= maxFiles) return referenced;
+    }
+  }
+  return referenced;
+}
+
+function buildRepositoryContext(repositoryFiles, referencedFiles) {
+  const maxIndex = numberConfig('AI_REVIEW_MAX_FILE_INDEX', 5000);
+  const visibleFiles = repositoryFiles.slice(0, maxIndex);
+  const parts = [
+    '# Repository File Index',
+    '',
+    ...visibleFiles.map((file) => `- ${file}`),
+  ];
+  if (repositoryFiles.length > visibleFiles.length) {
+    parts.push(`- ... ${repositoryFiles.length - visibleFiles.length} more files omitted`);
+  }
+  if (referencedFiles.length > 0) {
+    parts.push('', '# Referenced Existing Files', '');
+    for (const file of referencedFiles) {
+      parts.push(`## ${file.filePath}`, '', '```', file.content, '```', file.truncated ? '_File content truncated._' : '', '');
+    }
+  }
+  return parts.join('\n');
+}
+
 function walkMarkdownFiles(dir) {
   const result = [];
   if (!fs.existsSync(dir)) return result;
@@ -201,11 +284,11 @@ function readRules(root) {
   return { rules: sections.join('\n\n'), missing, loadedFiles };
 }
 
-function buildMessages(rules, diffText, wasTruncated) {
+function buildMessages(rules, repositoryContext, diffText, wasTruncated) {
   const language = config('AI_REVIEW_LANGUAGE', 'zh-CN');
   const truncationNote = wasTruncated ? 'Some diff content was omitted because AI_REVIEW_MAX_CHUNKS was reached.' : 'Review this diff as part of the full change set.';
   const system = `You are a senior code reviewer. Review only the supplied git diff. Respond in ${language}.
-Use the supplied markdown rules as mandatory review criteria.
+Use the supplied markdown rules as mandatory review criteria. Use the repository file index to verify whether referenced files exist.
 For every finding, use this exact format:
 - Severity: P0|P1|P2|P3
 - File: path or unknown
@@ -213,8 +296,8 @@ For every finding, use this exact format:
 - Reason: concise reason based on the diff
 - Fix: concrete suggested fix
 Severity definition: P0 blocks release or causes critical security/data-loss/runtime failure; P1 is high-risk correctness, security, compatibility, or maintainability issue; P2 is medium risk; P3 is minor/nit.
-Do not mention chunks or chunking. Do not invent files or issues not supported by the diff. If no substantive issue exists, say no blocking findings.`;
-  const user = `# Review Rules\n\n${rules || 'No custom rules were provided.'}\n\n# Diff Context\n\n${truncationNote}\n\n\`\`\`diff\n${diffText}\n\`\`\``;
+Do not mention chunks or chunking. Do not invent files or issues not supported by the diff. Do not claim an imported or referenced local file is missing unless the repository file index confirms it is absent. If the file exists in the index but its contents are not shown, treat it as existing context rather than a missing file. If no substantive issue exists, say no blocking findings.`;
+  const user = `# Review Rules\n\n${rules || 'No custom rules were provided.'}\n\n# Repository Context\n\n${repositoryContext || 'No repository context was provided.'}\n\n# Diff Context\n\n${truncationNote}\n\n\`\`\`diff\n${diffText}\n\`\`\``;
   return [{ role: 'system', content: system }, { role: 'user', content: user }];
 }
 
@@ -264,7 +347,7 @@ async function reviewChunks(rules, chunks, omittedChunks) {
   const concurrency = numberConfig('AI_REVIEW_CONCURRENCY', 3);
   return runWithConcurrency(chunks, concurrency, async (chunk, index) => {
     console.log(`Reviewing diff part ${index + 1}/${chunks.length}`);
-    const content = await callModel(buildMessages(rules, chunk.text, omittedChunks > 0 && index === chunks.length - 1));
+    const content = await callModel(buildMessages(rules, chunk.repositoryContext, chunk.text, omittedChunks > 0 && index === chunks.length - 1));
     return { files: chunk.files, content };
   });
 }
@@ -305,7 +388,7 @@ function maxSeverityFromGroups(grouped) {
 }
 
 function renderFindingList(items) {
-  if (items.length === 0) return ['无'];
+  if (items.length === 0) return ['None'];
   return items.map((item, index) => `### ${index + 1}\n\n${item}`);
 }
 
@@ -314,7 +397,7 @@ function buildCombinedReport(chunkReports, metadata) {
   const maxSeverity = maxSeverityFromGroups(grouped);
   const findingsCount = grouped.blocking.length + grouped.nonBlocking.length;
   const parts = ['# AI Code Review', '', '## Summary', '', `- Overall Severity: ${maxSeverity.toUpperCase()}`, `- Findings: ${findingsCount}`, `- Reviewed Files: ${metadata.reviewedFiles.length}`, `- Skipped Files: ${metadata.skippedFiles.length}`, ''];
-  if (metadata.omittedChunks > 0) parts.push('> 部分 diff 因超过最大处理上限未被审查，建议拆分本次变更。', '');
+  if (metadata.omittedChunks > 0) parts.push('> Some diff content was not reviewed because the max internal review limit was reached. Please split this change if needed.', '');
   if (grouped.blocking.length > 0) parts.push('## Blocking Findings', '', ...renderFindingList(grouped.blocking), '');
   if (grouped.nonBlocking.length > 0) parts.push('## Non-Blocking Findings', '', ...renderFindingList(grouped.nonBlocking), '');
   if (grouped.notes.length > 0) parts.push('## Notes', '', ...grouped.notes, '');
@@ -345,7 +428,11 @@ async function main() {
   const diffText = detectDiff();
   const diffFiles = splitDiffByFile(diffText);
   const { reviewed, skipped } = filterDiffFiles(diffFiles);
+  const repositoryFiles = listRepositoryFiles();
+  const referencedFiles = collectReferencedFiles(reviewed, repositoryFiles);
+  const repositoryContext = buildRepositoryContext(repositoryFiles, referencedFiles);
   const { chunks, omittedChunks } = chunkDiffFiles(reviewed);
+  for (const chunk of chunks) chunk.repositoryContext = repositoryContext;
 
   let review;
   if (!diffText.trim() || chunks.length === 0) {
