@@ -1,0 +1,28 @@
+README.md
+  s_651772c7e6f26b::t_03f70ad238fb71 3-4,6-7,10-14,17,19,63,65,74,82,84,86-88,90,92-93,96-97,112,119,121,123-124,126,133-134,136-139,141,143-157,169,171,176
+  s_651772c7e6f26b::t_2939646bfaa4d4 116
+  s_651772c7e6f26b::t_27b1883f6e956d 161,164-165
+rulesets/flutter/skills/flutter-fix-layout-issues/SKILL.md
+  h_859afe6cf571c2 1-127
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "4141e2758308de903b124a9dfa29366742318ce5",
+  "prompts": {},
+  "humans": {
+    "h_859afe6cf571c2": {
+      "author": "陈泽枫 <zefeng.chen@gl-inet.com>"
+    }
+  },
+  "sessions": {
+    "s_651772c7e6f26b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e0abd-c79c-76e3-8499-1376efffbe30",
+        "model": "gpt-5.5"
+      },
+      "human_author": "陈泽枫 <zefeng.chen@gl-inet.com>"
+    }
+  }
+}
