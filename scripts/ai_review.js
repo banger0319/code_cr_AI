@@ -195,6 +195,18 @@ async function callModel(messages) {
   }
 }
 
+function printReviewToLog(review) {
+  console.log('\n========== AI REVIEW REPORT START ==========\n');
+  console.log(review);
+  console.log('\n========== AI REVIEW REPORT END ==========\n');
+}
+
+function writeGitHubSummary(review) {
+  const summaryPath = env('GITHUB_STEP_SUMMARY');
+  if (!summaryPath) return;
+  fs.appendFileSync(summaryPath, `${review}\n`, 'utf8');
+}
+
 function hasBlockingSeverity(review) {
   return /(^|[^A-Z0-9])(P0|P1)([^A-Z0-9]|$)/i.test(review);
 }
@@ -223,6 +235,8 @@ async function main() {
   }
 
   fs.writeFileSync(output, review, 'utf8');
+  printReviewToLog(review);
+  writeGitHubSummary(review);
   console.log(`AI review written to ${output}`);
 
   if (config('AI_REVIEW_FAIL_ON_FINDINGS', 'false').toLowerCase() === 'true' && hasBlockingSeverity(review)) {
