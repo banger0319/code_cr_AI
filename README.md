@@ -4,8 +4,6 @@
 
 ## 最小接入示例
 
-在被 CR 项目中创建 `.github/workflows/ai-review.yml`：
-
 ```yaml
 name: AI Code Review
 
@@ -48,14 +46,14 @@ jobs:
 
 ## 大 diff 处理
 
-大 diff 分片处理已经内置在本 Action 中，业务项目默认不需要配置：
+大 diff 处理是内部实现细节，最终用户只会看到整理后的完整报告：
 
-- 默认按文件和大小切分 diff：每个 chunk 约 `60000` bytes。
-- 默认最多审查 `20` 个 chunk，超出部分会在报告中标记 omitted。
+- 内部按文件和大小拆分 diff，降低模型超时概率。
+- 默认最多处理 `20` 个内部分片，超出时最终报告提示“部分 diff 未被审查”。
 - 默认并发请求模型：`3`。
 - 默认模型请求超时：`600` 秒。
-- 最终会汇总所有 chunk 的报告。
-- 任一 chunk 出现 `P0` 或 `P1`，且启用 `fail-on-findings: 'true'`，流水线失败。
+- 最终报告统一整理为 `Summary`、`Blocking Findings`、`Non-Blocking Findings`、`Notes`。
+- 任一内部审查结果出现 `P0` 或 `P1`，且启用 `fail-on-findings: 'true'`，流水线失败。
 
 默认不排除任何文件。无需 CR 的文件类型建议由被 CR 项目按自身情况配置：
 
@@ -64,7 +62,7 @@ with:
   exclude-paths: 'package-lock.json,pnpm-lock.yaml,yarn.lock,dist/**,build/**,coverage/**,*.map,*.png,*.jpg,*.svg'
 ```
 
-如需覆盖分片策略，也可以配置：
+如需覆盖内部处理策略，也可以配置：
 
 ```yaml
 with:
@@ -110,14 +108,7 @@ P2: 中风险问题
 P3: 轻微问题或建议
 ```
 
-当配置：
-
-```yaml
-with:
-  fail-on-findings: 'true'
-```
-
-脚本会扫描最终汇总报告；只要出现 `P0` 或 `P1`，Action 退出码为 1，流水线不通过。
+当配置 `fail-on-findings: 'true'` 时，最终报告中只要出现 `P0` 或 `P1`，Action 退出码为 1，流水线不通过。
 
 ## 输入参数
 
@@ -131,8 +122,8 @@ with:
 | `endpoint` | 空 | 可选覆盖；默认读取 `AI_REVIEW_ENDPOINT`，否则使用 `$AI_REVIEW_BASE_URL/chat/completions`。 |
 | `api-key` | 空 | 可选覆盖；默认读取 `AI_REVIEW_API_KEY`。 |
 | `language` | `zh-CN` | Review 输出语言。 |
-| `chunk-bytes` | `60000` | 每个 AI review chunk 的最大字节数。 |
-| `max-chunks` | `20` | 最多审查的 chunk 数。 |
+| `chunk-bytes` | `60000` | 内部单次模型审查的最大 diff 字节数。 |
+| `max-chunks` | `20` | 最多处理的内部 diff 分片数。 |
 | `concurrency` | `3` | 并发模型请求数。 |
 | `timeout-seconds` | `600` | 单次模型请求超时时间。 |
 | `exclude-paths` | 空 | 逗号分隔的过滤 glob，由被 CR 项目按需配置。 |
@@ -140,15 +131,3 @@ with:
 | `fail-on-findings` | `false` | 是否在报告出现 `P0` 或 `P1` 时让 action 失败。 |
 | `strict-rulesets` | `false` | 规则集目录缺失时是否失败。 |
 | `dry-run` | `false` | 只验证规则、diff 分片和过滤，不调用模型。 |
-
-## 本地验证
-
-```bash
-AI_REVIEW_DRY_RUN=true \
-AI_REVIEW_PROJECT_TYPES=flutter \
-AI_REVIEW_RULESETS_DIR=rulesets \
-AI_REVIEW_API_KEY=dry-run-placeholder \
-AI_REVIEW_DIFF='diff --git a/lib/a.dart b/lib/a.dart
-+Text("hello")' \
-node scripts/ai_review.js
-```

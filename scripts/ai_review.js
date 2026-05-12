@@ -3,7 +3,6 @@ const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
 
-
 function env(name, defaultValue = '') {
   return (process.env[name] || defaultValue).trim();
 }
@@ -19,11 +18,7 @@ function numberConfig(name, defaultValue) {
 }
 
 function splitCsv(value) {
-  return value
-    .replace(/;/g, ',')
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean);
+  return value.replace(/;/g, ',').split(',').map((item) => item.trim()).filter(Boolean);
 }
 
 function shellSplit(value) {
@@ -61,9 +56,7 @@ function detectDiff() {
   if (diffFile) return fs.readFileSync(diffFile, 'utf8');
 
   const explicitRange = env('AI_REVIEW_DIFF_RANGE');
-  if (explicitRange) {
-    return runGit(['diff', '--no-ext-diff', ...shellSplit(explicitRange)]);
-  }
+  if (explicitRange) return runGit(['diff', '--no-ext-diff', ...shellSplit(explicitRange)]);
 
   const eventName = env('GITHUB_EVENT_NAME');
   const eventPath = env('GITHUB_EVENT_PATH');
@@ -103,12 +96,10 @@ function splitDiffByFile(diffText) {
     if (line.startsWith('diff --git ')) {
       if (current) files.push(current);
       const match = line.match(/^diff --git a\/(.*?) b\/(.*)$/);
-      const filePath = match ? normalizePath(match[2]) : 'unknown';
-      current = { filePath, lines: [line] };
+      current = { filePath: match ? normalizePath(match[2]) : 'unknown', lines: [line] };
     } else if (current) {
       current.lines.push(line);
       if (line.startsWith('+++ b/')) current.filePath = normalizePath(line.slice(6));
-      if (line.startsWith('+++ /dev/null') && current.filePath === 'unknown') current.filePath = 'deleted-file';
     } else if (line.trim()) {
       current = { filePath: 'unknown', lines: [line] };
     }
@@ -128,11 +119,8 @@ function filterDiffFiles(diffFiles) {
   const reviewed = [];
   const skipped = [];
   for (const file of diffFiles) {
-    if (shouldExclude(file.filePath, excludeMatchers)) {
-      skipped.push(file.filePath);
-    } else {
-      reviewed.push(file);
-    }
+    if (shouldExclude(file.filePath, excludeMatchers)) skipped.push(file.filePath);
+    else reviewed.push(file);
   }
   return { reviewed, skipped };
 }
@@ -152,7 +140,6 @@ function chunkDiffFiles(diffFiles) {
       currentText = '';
       currentFiles = [];
     }
-
     if (fileBytes > chunkBytes) {
       const lines = fileText.split(/\r?\n/);
       let partial = '';
@@ -169,11 +156,9 @@ function chunkDiffFiles(diffFiles) {
       if (partial.trim()) chunks.push({ text: partial, files: [`${file.filePath}#part${part}`] });
       continue;
     }
-
     currentText += fileText;
     currentFiles.push(file.filePath);
   }
-
   if (currentText.trim()) chunks.push({ text: currentText, files: currentFiles });
   return { chunks: chunks.slice(0, maxChunks), omittedChunks: Math.max(0, chunks.length - maxChunks), totalChunks: chunks.length };
 }
@@ -183,20 +168,14 @@ function walkMarkdownFiles(dir) {
   if (!fs.existsSync(dir)) return result;
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const fullPath = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      result.push(...walkMarkdownFiles(fullPath));
-    } else if (entry.isFile() && entry.name.toLowerCase().endsWith('.md')) {
-      result.push(fullPath);
-    }
+    if (entry.isDirectory()) result.push(...walkMarkdownFiles(fullPath));
+    else if (entry.isFile() && entry.name.toLowerCase().endsWith('.md')) result.push(fullPath);
   }
   return result.sort();
 }
 
 function rulesetDirs(root) {
-  return [
-    ...splitCsv(config('AI_REVIEW_PROJECT_TYPES', '')),
-    ...splitCsv(config('AI_REVIEW_EXTRA_RULESETS', '')),
-  ].map((item) => path.join(root, item));
+  return [...splitCsv(config('AI_REVIEW_PROJECT_TYPES', '')), ...splitCsv(config('AI_REVIEW_EXTRA_RULESETS', ''))].map((item) => path.join(root, item));
 }
 
 function readRules(root) {
@@ -222,12 +201,9 @@ function readRules(root) {
   return { rules: sections.join('\n\n'), missing, loadedFiles };
 }
 
-function buildMessages(rules, diffText, wasTruncated, chunkInfo) {
+function buildMessages(rules, diffText, wasTruncated) {
   const language = config('AI_REVIEW_LANGUAGE', 'zh-CN');
-  const truncationNote = wasTruncated
-    ? 'Diff was truncated because it exceeded the configured review chunk limits.'
-    : 'Diff chunk is complete.';
-  const chunkNote = chunkInfo ? `Chunk ${chunkInfo.index}/${chunkInfo.total}. Files: ${chunkInfo.files.join(', ') || 'unknown'}.` : '';
+  const truncationNote = wasTruncated ? 'Some diff content was omitted because AI_REVIEW_MAX_CHUNKS was reached.' : 'Review this diff as part of the full change set.';
   const system = `You are a senior code reviewer. Review only the supplied git diff. Respond in ${language}.
 Use the supplied markdown rules as mandatory review criteria.
 For every finding, use this exact format:
@@ -237,25 +213,17 @@ For every finding, use this exact format:
 - Reason: concise reason based on the diff
 - Fix: concrete suggested fix
 Severity definition: P0 blocks release or causes critical security/data-loss/runtime failure; P1 is high-risk correctness, security, compatibility, or maintainability issue; P2 is medium risk; P3 is minor/nit.
-Do not invent files or issues not supported by the diff. If no substantive issue exists, say no blocking findings.`;
-  const user = `# Review Rules\n\n${rules || 'No custom rules were provided.'}\n\n# Diff Context\n\n${chunkNote}\n${truncationNote}\n\n\`\`\`diff\n${diffText}\n\`\`\``;
-  return [
-    { role: 'system', content: system },
-    { role: 'user', content: user },
-  ];
+Do not mention chunks or chunking. Do not invent files or issues not supported by the diff. If no substantive issue exists, say no blocking findings.`;
+  const user = `# Review Rules\n\n${rules || 'No custom rules were provided.'}\n\n# Diff Context\n\n${truncationNote}\n\n\`\`\`diff\n${diffText}\n\`\`\``;
+  return [{ role: 'system', content: system }, { role: 'user', content: user }];
 }
 
 async function callModel(messages) {
   const apiKey = config('AI_REVIEW_API_KEY');
   if (!apiKey) throw new Error('AI_REVIEW_API_KEY is required');
-
   const baseUrl = config('AI_REVIEW_BASE_URL', 'https://api.openai.com/v1').replace(/\/$/, '');
   const endpoint = config('AI_REVIEW_ENDPOINT', `${baseUrl}/chat/completions`);
-  const payload = {
-    model: config('AI_REVIEW_MODEL', 'gpt-4.1-mini'),
-    messages,
-    temperature: Number(config('AI_REVIEW_TEMPERATURE', '0.1')),
-  };
+  const payload = { model: config('AI_REVIEW_MODEL', 'gpt-4.1-mini'), messages, temperature: Number(config('AI_REVIEW_TEMPERATURE', '0.1')) };
   const maxTokens = config('AI_REVIEW_MAX_TOKENS');
   if (maxTokens) payload.max_tokens = Number(maxTokens);
 
@@ -263,29 +231,15 @@ async function callModel(messages) {
   const timeoutSeconds = numberConfig('AI_REVIEW_TIMEOUT_SECONDS', 600);
   const timeout = setTimeout(() => controller.abort(), timeoutSeconds * 1000);
   try {
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-      signal: controller.signal,
-    });
+    const response = await fetch(endpoint, { method: 'POST', headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: controller.signal });
     const text = await response.text();
-    if (!response.ok) {
-      throw new Error(`Model request failed: HTTP ${response.status}: ${text}`);
-    }
+    if (!response.ok) throw new Error(`Model request failed: HTTP ${response.status}: ${text}`);
     const data = JSON.parse(text);
     const content = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
-    if (!content) {
-      throw new Error(`Unexpected model response: ${text.slice(0, 1000)}`);
-    }
+    if (!content) throw new Error(`Unexpected model response: ${text.slice(0, 1000)}`);
     return content.trim();
   } catch (error) {
-    if (error.name === 'AbortError') {
-      throw new Error(`AI model request timed out after ${timeoutSeconds} seconds. Reduce diff size or increase AI_REVIEW_TIMEOUT_SECONDS.`);
-    }
+    if (error.name === 'AbortError') throw new Error(`AI model request timed out after ${timeoutSeconds} seconds. Reduce diff size or increase AI_REVIEW_TIMEOUT_SECONDS.`);
     throw error;
   } finally {
     clearTimeout(timeout);
@@ -307,63 +261,65 @@ async function runWithConcurrency(items, concurrency, worker) {
 }
 
 async function reviewChunks(rules, chunks, omittedChunks) {
-  if (chunks.length === 0) return [];
   const concurrency = numberConfig('AI_REVIEW_CONCURRENCY', 3);
   return runWithConcurrency(chunks, concurrency, async (chunk, index) => {
-    console.log(`Reviewing diff chunk ${index + 1}/${chunks.length} (${chunk.files.join(', ') || 'unknown'})`);
-    const wasTruncated = omittedChunks > 0 && index === chunks.length - 1;
-    const content = await callModel(buildMessages(rules, chunk.text, wasTruncated, {
-      index: index + 1,
-      total: chunks.length,
-      files: chunk.files,
-    }));
-    return { index: index + 1, files: chunk.files, content };
+    console.log(`Reviewing diff part ${index + 1}/${chunks.length}`);
+    const content = await callModel(buildMessages(rules, chunk.text, omittedChunks > 0 && index === chunks.length - 1));
+    return { files: chunk.files, content };
   });
 }
 
-function buildDryRunReport(loadedFiles, chunks, skippedFiles, omittedChunks, totalChunks) {
-  return [
-    '# AI Code Review Dry Run',
-    '',
-    'Rules loaded successfully. Model call skipped.',
-    '',
-    `Planned chunks: ${chunks.length}/${totalChunks}`,
-    `Skipped files: ${skippedFiles.length}`,
-    `Omitted chunks: ${omittedChunks}`,
-    '',
-  ].join('\n');
-}
-
-function buildCombinedReport(chunkReports, metadata) {
-  const parts = [
-    '# AI Code Review',
-    '',
-    `Max Severity: ${maxSeverity(chunkReports.map((item) => item.content))}`,
-    `Reviewed Chunks: ${chunkReports.length}/${metadata.totalChunks}`,
-    `Skipped Files: ${metadata.skippedFiles.length}`,
-    `Omitted Chunks: ${metadata.omittedChunks}`,
-    '',
-  ];
-
-  if (metadata.omittedChunks > 0) {
-    parts.push('> Some diff chunks were omitted because AI_REVIEW_MAX_CHUNKS was reached. Consider splitting the change.', '');
-  }
-  if (metadata.skippedFiles.length > 0) {
-    parts.push('## Skipped Files', '', ...metadata.skippedFiles.map((file) => `- \`${file}\``), '');
-  }
-  for (const report of chunkReports) {
-    parts.push(`## Chunk ${report.index}`, '', `Files: ${report.files.map((file) => `\`${file}\``).join(', ') || 'unknown'}`, '', report.content, '');
-  }
+function buildDryRunReport(loadedFiles, skippedFiles, omittedChunks) {
+  const parts = ['# AI Code Review Dry Run', '', 'Rules loaded successfully. Model call skipped.', ''];
+  if (skippedFiles.length > 0) parts.push(`Skipped files: ${skippedFiles.length}`, '');
+  if (omittedChunks > 0) parts.push('Some diff content would be omitted by the current max chunk limit.', '');
   return parts.join('\n');
 }
 
-function maxSeverity(reports) {
-  const order = ['P0', 'P1', 'P2', 'P3'];
-  const text = reports.join('\n');
-  for (const severity of order) {
-    if (new RegExp(`(^|[^A-Z0-9])${severity}([^A-Z0-9]|$)`, 'i').test(text)) return severity;
+function extractFindingBlocks(text) {
+  const normalized = text.replace(/\r\n/g, '\n').trim();
+  if (!normalized) return [];
+  const matches = [...normalized.matchAll(/(?:^|\n)(?:[-*]\s*)?Severity:\s*(P[0-3])[\s\S]*?(?=\n(?:[-*]\s*)?Severity:\s*P[0-3]|$)/gi)];
+  if (matches.length === 0) return [normalized];
+  return matches.map((match) => match[0].trim());
+}
+
+function groupFindings(chunkReports) {
+  const grouped = { blocking: [], nonBlocking: [], notes: [] };
+  for (const report of chunkReports) {
+    for (const block of extractFindingBlocks(report.content)) {
+      if (/(^|[^A-Z0-9])(P0|P1)([^A-Z0-9]|$)/i.test(block)) grouped.blocking.push(block);
+      else if (/(^|[^A-Z0-9])(P2|P3)([^A-Z0-9]|$)/i.test(block)) grouped.nonBlocking.push(block);
+      else grouped.notes.push(block);
+    }
+  }
+  return grouped;
+}
+
+function maxSeverityFromGroups(grouped) {
+  const all = [...grouped.blocking, ...grouped.nonBlocking, ...grouped.notes].join('\n');
+  for (const severity of ['P0', 'P1', 'P2', 'P3']) {
+    if (new RegExp(`(^|[^A-Z0-9])${severity}([^A-Z0-9]|$)`, 'i').test(all)) return severity;
   }
   return 'none';
+}
+
+function renderFindingList(items) {
+  if (items.length === 0) return ['无'];
+  return items.map((item, index) => `### ${index + 1}\n\n${item}`);
+}
+
+function buildCombinedReport(chunkReports, metadata) {
+  const grouped = groupFindings(chunkReports);
+  const maxSeverity = maxSeverityFromGroups(grouped);
+  const findingsCount = grouped.blocking.length + grouped.nonBlocking.length;
+  const parts = ['# AI Code Review', '', '## Summary', '', `- Overall Severity: ${maxSeverity.toUpperCase()}`, `- Findings: ${findingsCount}`, `- Reviewed Files: ${metadata.reviewedFiles.length}`, `- Skipped Files: ${metadata.skippedFiles.length}`, ''];
+  if (metadata.omittedChunks > 0) parts.push('> 部分 diff 因超过最大处理上限未被审查，建议拆分本次变更。', '');
+  if (grouped.blocking.length > 0) parts.push('## Blocking Findings', '', ...renderFindingList(grouped.blocking), '');
+  if (grouped.nonBlocking.length > 0) parts.push('## Non-Blocking Findings', '', ...renderFindingList(grouped.nonBlocking), '');
+  if (grouped.notes.length > 0) parts.push('## Notes', '', ...grouped.notes, '');
+  if (metadata.skippedFiles.length > 0) parts.push('## Skipped Files', '', ...metadata.skippedFiles.map((file) => `- \`${file}\``), '');
+  return parts.join('\n');
 }
 
 function printReviewToLog(review) {
@@ -389,24 +345,20 @@ async function main() {
   const diffText = detectDiff();
   const diffFiles = splitDiffByFile(diffText);
   const { reviewed, skipped } = filterDiffFiles(diffFiles);
-  const { chunks, omittedChunks, totalChunks } = chunkDiffFiles(reviewed);
+  const { chunks, omittedChunks } = chunkDiffFiles(reviewed);
 
   let review;
   if (!diffText.trim() || chunks.length === 0) {
     review = '# AI Code Review\n\nNo reviewable diff detected.';
   } else if (config('AI_REVIEW_DRY_RUN', 'false').toLowerCase() === 'true') {
-    review = buildDryRunReport(loadedFiles, chunks, skipped, omittedChunks, totalChunks);
+    review = buildDryRunReport(loadedFiles, skipped, omittedChunks);
   } else {
     const chunkReports = await reviewChunks(rules, chunks, omittedChunks);
-    review = buildCombinedReport(chunkReports, { skippedFiles: skipped, omittedChunks, totalChunks });
+    review = buildCombinedReport(chunkReports, { skippedFiles: skipped, reviewedFiles: reviewed.map((item) => item.filePath), omittedChunks });
   }
 
-  if (loadedFiles.length > 0) {
-    review += `\n## Loaded Rule Files\n\n${loadedFiles.map((item) => `- \`${item}\``).join('\n')}\n`;
-  }
-  if (missing.length > 0) {
-    review += `\n## Missing Rulesets\n\n${missing.map((item) => `- \`${item}\``).join('\n')}\n`;
-  }
+  if (loadedFiles.length > 0) review += `\n## Loaded Rule Files\n\n${loadedFiles.map((item) => `- \`${item}\``).join('\n')}\n`;
+  if (missing.length > 0) review += `\n## Missing Rulesets\n\n${missing.map((item) => `- \`${item}\``).join('\n')}\n`;
 
   fs.writeFileSync(output, review, 'utf8');
   printReviewToLog(review);
