@@ -1,0 +1,20 @@
+scripts/ai_review.js
+  s_651772c7e6f26b::t_13768fc13a41cd 198-209
+  s_651772c7e6f26b::t_8d7f40d303e45c 238-239
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "b333e7a119bcd90b3f6a1f69c2cb23956bf4d852",
+  "prompts": {},
+  "sessions": {
+    "s_651772c7e6f26b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e0abd-c79c-76e3-8499-1376efffbe30",
+        "model": "gpt-5.5"
+      },
+      "human_author": "陈泽枫 <zefeng.chen@gl-inet.com>"
+    }
+  }
+}
