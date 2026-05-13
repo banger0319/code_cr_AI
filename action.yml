@@ -87,10 +87,6 @@ inputs:
     description: fail-open (warn on error) or fail-closed (fail on error).
     required: false
     default: fail-open
-  max-findings:
-    description: Maximum findings to include in the report.
-    required: false
-    default: '50'
 
 runs:
   using: composite
@@ -123,5 +119,4 @@ runs:
         AI_REVIEW_GITHUB_TOKEN_INPUT: ${{ inputs.github-token }}
         AI_REVIEW_RETRY_COUNT_INPUT: ${{ inputs.retry-count }}
         AI_REVIEW_FAIL_MODE_INPUT: ${{ inputs.fail-mode }}
-        AI_REVIEW_MAX_FINDINGS_INPUT: ${{ inputs.max-findings }}
       run: node "${{ github.action_path }}/scripts/ai_review.js"

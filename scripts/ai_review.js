@@ -375,8 +375,6 @@ function getLabels(language) {
       missingRulesets: '缺失规则集',
       noDiff: '未检测到可审查的 diff。',
       omittedWarning: '部分 diff 因超出最大审查上限未审查，如需完整审查请拆分变更。',
-      showingMoreBlocking: (s, t) => `_显示 ${s}/${t} 条阻断性发现_`,
-      showingMoreNonBlocking: (s, t) => `_显示 ${s}/${t} 条非阻断性发现_`,
       fieldBlocking: '阻断',
       fieldSeverity: '严重程度',
       fieldConfidence: '置信度',
@@ -422,8 +420,6 @@ function getLabels(language) {
     missingRulesets: 'Missing Rulesets',
     noDiff: 'No reviewable diff detected.',
     omittedWarning: 'Some diff content was not reviewed because the max internal review limit was reached. Please split this change if needed.',
-    showingMoreBlocking: (s, t) => `_Showing ${s} of ${t} blocking findings._`,
-    showingMoreNonBlocking: (s, t) => `_Showing ${s} of ${t} non-blocking findings._`,
     fieldBlocking: 'Blocking',
     fieldSeverity: 'Severity',
     fieldConfidence: 'Confidence',
@@ -679,7 +675,6 @@ function buildCombinedReport(allData, metadata) {
 
   const maxSev = maxSeverityFromGrouped(grouped);
   const findingsCount = grouped.blocking.length + grouped.nonBlocking.length;
-  const maxFindings = numberConfig('AI_REVIEW_MAX_FINDINGS', 50);
   const L = getLabels(config('AI_REVIEW_LANGUAGE', 'zh-CN'));
 
   const parts = [
@@ -699,24 +694,15 @@ function buildCombinedReport(allData, metadata) {
 
   if (grouped.blocking.length > 0) {
     parts.push(`## ${L.blockingFindings}`, '');
-    const shown = grouped.blocking.slice(0, maxFindings);
-    for (let i = 0; i < shown.length; i++) {
-      parts.push(`### ${i + 1}\n\n${renderFindingBlock(shown[i], config('AI_REVIEW_LANGUAGE', 'zh-CN'))}\n`);
-    }
-    if (grouped.blocking.length > maxFindings) {
-      parts.push(`${L.showingMoreBlocking(maxFindings, grouped.blocking.length)}\n`);
+    for (let i = 0; i < grouped.blocking.length; i++) {
+      parts.push(`### ${i + 1}\n\n${renderFindingBlock(grouped.blocking[i], config('AI_REVIEW_LANGUAGE', 'zh-CN'))}\n`);
     }
   }
 
   if (grouped.nonBlocking.length > 0) {
     parts.push(`## ${L.nonBlockingFindings}`, '');
-    const remaining = Math.max(0, maxFindings - grouped.blocking.length);
-    const shown = grouped.nonBlocking.slice(0, remaining);
-    for (let i = 0; i < shown.length; i++) {
-      parts.push(`### ${i + 1}\n\n${renderFindingBlock(shown[i], config('AI_REVIEW_LANGUAGE', 'zh-CN'))}\n`);
-    }
-    if (grouped.nonBlocking.length > remaining) {
-      parts.push(`${L.showingMoreNonBlocking(shown.length, grouped.nonBlocking.length)}\n`);
+    for (let i = 0; i < grouped.nonBlocking.length; i++) {
+      parts.push(`### ${i + 1}\n\n${renderFindingBlock(grouped.nonBlocking[i], config('AI_REVIEW_LANGUAGE', 'zh-CN'))}\n`);
     }
   }
 

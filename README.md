@@ -173,4 +173,3 @@ CR 结果会同时出现在三个地方：
 | `github-token` | `${{ github.token }}` | 用于 PR 评论的 GitHub Token。 |
 | `retry-count` | `2` | 模型请求遇到 429/5xx 时的最大重试次数。 |
 | `fail-mode` | `fail-open` | 脚本自身出错时的策略：`fail-open`（仅 warning）、`fail-closed`（退出码 2）。 |
-| `max-findings` | `50` | 报告中最多展示的 finding 数量。 |
