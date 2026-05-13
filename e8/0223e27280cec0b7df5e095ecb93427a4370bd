@@ -1,0 +1,34 @@
+README.md
+  s_651772c7e6f26b::t_06b7ecf1651ddd 3-6,48,50,52,54-56,59,66,76,78-86,92-93,95-98,100-101,103,105,118-119,130-132,141-145,147-149,151,153,155-168,170
+  s_8327a06973abf7::t_48969e945f1233 169,171-176
+  s_8327a06973abf7::t_cf7f2597212ae0 36
+  s_651772c7e6f26b::t_0b307e9698a01f 58,67,77,87-91,94,99,113-117,120-123,127,129,135,146
+  s_8327a06973abf7::t_2a10cb8ae0c95f 46-47,53,57
+  s_8327a06973abf7::t_37c9d044770a08 102,104,106-112,125-126,128
+OPERATIONS_MANUAL.md
+  s_8327a06973abf7::t_dc65dd02add03a 1-651
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.7",
+  "base_commit_sha": "e80223e27280cec0b7df5e095ecb93427a4370bd",
+  "prompts": {},
+  "sessions": {
+    "s_651772c7e6f26b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e0abd-c79c-76e3-8499-1376efffbe30",
+        "model": "gpt-5.5"
+      },
+      "human_author": "陈泽枫 <zefeng.chen@gl-inet.com>"
+    },
+    "s_8327a06973abf7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d6bac242-fc59-405f-b745-e19073b9a3ea",
+        "model": "deepseek-v4-pro"
+      },
+      "human_author": "陈泽枫 <zefeng.chen@gl-inet.com>"
+    }
+  }
+}
