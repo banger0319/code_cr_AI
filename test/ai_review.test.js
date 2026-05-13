@@ -319,18 +319,18 @@ describe('chunkDiffFiles', () => {
 describe('buildDryRunReport', () => {
   it('produces dry-run header', () => {
     const report = mod.buildDryRunReport([], [], 0);
-    assert.ok(report.includes('# AI Code Review Dry Run'));
-    assert.ok(report.includes('Model call skipped'));
+    assert.ok(report.includes('空运行'));
+    assert.ok(report.includes('未调用模型'));
   });
 
   it('mentions skipped file count', () => {
     const report = mod.buildDryRunReport([], ['dist/bundle.js'], 0);
-    assert.ok(report.includes('Skipped files: 1'));
+    assert.ok(report.includes('跳过文件: 1'));
   });
 
   it('mentions omitted chunks', () => {
     const report = mod.buildDryRunReport([], [], 3);
-    assert.ok(report.includes('max chunk limit'));
+    assert.ok(report.includes('审查上限'));
   });
 });
 
@@ -379,8 +379,8 @@ describe('buildCombinedReport', () => {
     ];
     const metadata = { reviewedFiles: ['src/a.js'], skippedFiles: [], omittedChunks: 0 };
     const report = mod.buildCombinedReport(allData, metadata);
-    assert.ok(report.includes('# AI Code Review'));
-    assert.ok(report.includes('Blocking: true'));
+    assert.ok(report.includes('AI 代码审查'));
+    assert.ok(report.includes('阻断: true'));
   });
 });
 
@@ -391,7 +391,7 @@ describe('buildMessages', () => {
     assert.strictEqual(msgs[0].role, 'system');
     assert.strictEqual(msgs[1].role, 'user');
     assert.ok(msgs[0].content.includes('JSON'));
-    assert.ok(msgs[0].content.includes('untrusted input'));
+    assert.ok(msgs[0].content.includes('不可信输入'));
     assert.ok(msgs[1].content.includes('rules'));
   });
 
@@ -445,7 +445,7 @@ describe('buildMessages with skills', () => {
   it('renders skills catalog in system prompt', () => {
     const skills = [{ name: 'test-skill', description: 'A test skill', body: 'Do the thing.' }];
     const msgs = mod.buildMessages('rules', 'context', 'diff', false, skills);
-    assert.ok(msgs[0].content.includes('Available Skills'));
+    assert.ok(msgs[0].content.includes('可用技能'));
     assert.ok(msgs[0].content.includes('test-skill'));
     assert.ok(msgs[0].content.includes('A test skill'));
     assert.ok(msgs[0].content.includes('Do the thing.'));
@@ -453,7 +453,7 @@ describe('buildMessages with skills', () => {
 
   it('omits skills section when empty', () => {
     const msgs = mod.buildMessages('rules', 'context', 'diff', false, []);
-    assert.ok(!msgs[0].content.includes('Available Skills'));
+    assert.ok(!msgs[0].content.includes('可用技能'));
   });
 });
 
