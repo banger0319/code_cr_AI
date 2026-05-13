@@ -1,3 +1,8 @@
+# 完整示例：Web 前端项目 AI Code Review
+#
+# 将此文件复制到你的仓库 .github/workflows/ 目录下即可使用。
+# 注意替换 project-types、model、base-url 等参数为你的实际配置。
+
 name: AI Code Review
 
 on:
@@ -7,15 +12,10 @@ on:
     types: [opened, synchronize, reopened]
   workflow_dispatch:
 
+# pr-comment 模式需要 pull-requests: write
 permissions:
   contents: read
-  pull-requests: read
-
-env:
-  AI_REVIEW_PROJECT_TYPES: web
-  AI_REVIEW_MODEL: gpt-4.1-mini
-  AI_REVIEW_BASE_URL: https://api.openai.com/v1
-  AI_REVIEW_API_KEY: sk-xxxxxx
+  pull-requests: write
 
 jobs:
   ai-review:
@@ -29,8 +29,38 @@ jobs:
       - name: Run AI review
         uses: banger0319/code_cr_AI@main
         with:
-          output: ai-review.md
-          fail-on-findings: 'true'
+          # ---- 必填 ----
+          project-types: web
+          model: gpt-4.1-mini
+          base-url: https://api.openai.com/v1
+          api-key: ${{ secrets.AI_REVIEW_API_KEY }}
+
+          # ---- 推荐配置 ----
+          # 排除不需要审查的文件
+          exclude-paths: 'package-lock.json,pnpm-lock.yaml,yarn.lock,dist/**,build/**,coverage/**,*.map,*.png,*.jpg,*.svg'
+          # 输出方式：Step Summary + 产物 + PR 评论
+          reporter: summary,artifact,pr-comment
+          # PR 评论用 token（默认 ${{ github.token }}，无需修改）
+          github-token: ${{ github.token }}
+
+          # ---- 阻断策略（按需开启）----
+          # 默认不阻断。如需自动拦截高危发现，取消下一行注释：
+          # fail-on-findings: 'true'
+
+          # ---- 性能调优（按需调整）----
+          # chunk-bytes: '60000'
+          # max-chunks: '20'
+          # concurrency: '3'
+          # timeout-seconds: '600'
+          # retry-count: '2'
+
+          # ---- 错误策略 ----
+          # fail-open：脚本出错时仅 warning，不阻断 CI（默认）
+          # fail-closed：脚本出错时 CI 失败
+          # fail-mode: fail-open
+
+          # ---- 审查语言 ----
+          # language: zh-CN
 
       - name: Upload AI review report
         uses: actions/upload-artifact@v4
