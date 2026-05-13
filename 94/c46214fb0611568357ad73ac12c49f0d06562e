@@ -1,0 +1,29 @@
+rulesets/embedded/blocking.md
+  s_651772c7e6f26b::t_47de4b58e503ca 1-15
+rulesets/flutter/blocking.md
+  h_859afe6cf571c2 3
+  s_651772c7e6f26b::t_47de4b58e503ca 1-2
+rulesets/web/blocking.md
+  s_651772c7e6f26b::t_47de4b58e503ca 1-16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.7",
+  "base_commit_sha": "94c46214fb0611568357ad73ac12c49f0d06562e",
+  "prompts": {},
+  "humans": {
+    "h_859afe6cf571c2": {
+      "author": "陈泽枫 <zefeng.chen@gl-inet.com>"
+    }
+  },
+  "sessions": {
+    "s_651772c7e6f26b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e0abd-c79c-76e3-8499-1376efffbe30",
+        "model": "gpt-5.5"
+      },
+      "human_author": "陈泽枫 <zefeng.chen@gl-inet.com>"
+    }
+  }
+}
