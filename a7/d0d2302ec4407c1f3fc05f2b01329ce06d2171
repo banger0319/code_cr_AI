@@ -1,0 +1,33 @@
+test/fixtures/blocking-response.json
+  s_8327a06973abf7::t_e27a54712bafe3 1-31
+test/ai_review.test.js
+  s_8327a06973abf7::t_6ef1f46a755095 1-9,28-181,187-250,259-318,360-396,414-415,473-482
+  s_8327a06973abf7::t_68f1c3f36ad370 251-258
+  s_8327a06973abf7::t_796d665de4fdb2 10-27
+  s_8327a06973abf7::t_df2386d198d323 319-359
+  s_8327a06973abf7::t_82ac82955947e3 397-413
+  s_8327a06973abf7::t_f5edd0ace0ea66 416-472
+  s_8327a06973abf7::t_79cf971272be12 182-186
+test/fixtures/simple.diff
+  s_8327a06973abf7::t_fd61f46b3bf785 1-22
+test/fixtures/invalid-response.txt
+  s_8327a06973abf7::t_6aae7f7b37440b 1-14
+test/fixtures/nonblocking-response.json
+  s_8327a06973abf7::t_7b72461a0a9472 1-19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.7",
+  "base_commit_sha": "a7d0d2302ec4407c1f3fc05f2b01329ce06d2171",
+  "prompts": {},
+  "sessions": {
+    "s_8327a06973abf7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d6bac242-fc59-405f-b745-e19073b9a3ea",
+        "model": "deepseek-v4-pro"
+      },
+      "human_author": "陈泽枫 <zefeng.chen@gl-inet.com>"
+    }
+  }
+}
