@@ -1,0 +1,19 @@
+```json
+{
+  "findings": [
+    {
+      "blocking": false,
+      "severity": "P2",
+      "confidence": 0.65,
+      "file": "src/utils.js",
+      "line": 2,
+      "rule_id": "web.best-practice.string-concat",
+      "title": "Consider using template literals",
+      "reason": "Template literals are preferred over string concatenation in modern JavaScript",
+      "fix": "Use `Hello, ${name}` instead of string concatenation",
+      "suggestion": null
+    }
+  ],
+  "notes": ["Minor styling suggestion only"]
+}
+```

@@ -1,0 +1,31 @@
+```json
+{
+  "findings": [
+    {
+      "blocking": true,
+      "severity": "P1",
+      "confidence": 0.9,
+      "file": "src/index.js",
+      "line": 6,
+      "rule_id": "web.security.xss",
+      "title": "XSS vulnerability via req.query.name",
+      "reason": "User input from req.query.name is directly rendered in the response without sanitization",
+      "fix": "Use a proper HTML escaping function or avoid rendering user input directly",
+      "suggestion": null
+    },
+    {
+      "blocking": false,
+      "severity": "P2",
+      "confidence": 0.7,
+      "file": "src/utils.js",
+      "line": 2,
+      "rule_id": "web.performance.string-concat",
+      "title": "Use template literals instead of string concatenation",
+      "reason": "String concatenation is less readable and potentially slower",
+      "fix": "Use template literal: `Hello, ${name}`",
+      "suggestion": "Consider using consistent string formatting style"
+    }
+  ],
+  "notes": ["The new utils.js file looks well-structured"]
+}
+```

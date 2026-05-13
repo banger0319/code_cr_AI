@@ -1,0 +1,22 @@
+diff --git a/src/utils.js b/src/utils.js
+index 0000000..1111111
+--- /dev/null
++++ b/src/utils.js
+@@ -0,0 +1,5 @@
++function greet(name) {
++  return "Hello, " + name;
++}
++
++module.exports = { greet };
+diff --git a/src/index.js b/src/index.js
+index 2222222..3333333 100644
+--- a/src/index.js
++++ b/src/index.js
+@@ -1,4 +1,6 @@
+ const express = require('express');
++const { greet } = require('./utils');
+ const app = express();
+
+-app.get('/', (req, res) => res.send('ok'));
++app.get('/', (req, res) => res.send(greet(req.query.name || 'world')));
++app.listen(3000);

@@ -1,0 +1,14 @@
+Here is my review:
+
+The code looks mostly fine, but I think there are some issues:
+
+Blocking: true
+Severity: P1
+File: src/index.js
+This is an XSS vulnerability because user input is used directly.
+
+Blocking: false
+Severity: P3
+Just a minor naming suggestion.
+
+This is not valid JSON and should fail parsing.
