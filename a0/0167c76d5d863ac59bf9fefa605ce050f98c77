@@ -1,0 +1,49 @@
+scripts/ai_review.js
+  s_8327a06973abf7::t_a3559901af183e 818
+  s_8327a06973abf7::t_ea4c7c0ef3feff 923
+  s_8327a06973abf7::t_a362ce2315c7d0 944
+  s_8327a06973abf7::t_7ecad423004932 605
+  s_8327a06973abf7::t_dd3043e101df25 608
+  s_8327a06973abf7::t_bb8c733d9c6baf 570
+  s_8327a06973abf7::t_538e51dda69b1c 792
+  s_8327a06973abf7::t_011ced9e6c0768 615
+  s_8327a06973abf7::t_978f8ab8d3a5e7 355-455,463-464,469,471,474-475,477,488-490,498-508,510-511,513,515
+  s_8327a06973abf7::t_2fae894dc621e7 611
+  s_8327a06973abf7::t_56035379507f26 683,686-693,697,701,704,707,712,716,719,724,727
+  s_8327a06973abf7::t_2a3e5d1671f0e1 855
+  s_8327a06973abf7::t_fc7cdca6674b14 892-893,895,908-910
+  s_8327a06973abf7::t_57a3ba86a6cc0e 865-866
+  s_8327a06973abf7::t_0738dcc48e769b 815
+  s_8327a06973abf7::t_a55c0611b5a477 622
+  s_8327a06973abf7::t_5593d6e7a0bc3c 872-873
+  s_8327a06973abf7::t_b062af82af504a 601
+  s_8327a06973abf7::t_771562af41bbfb 653-654,656-664,666
+  s_8327a06973abf7::t_1a40f928a4b5c0 574
+  s_8327a06973abf7::t_18ddc0e74455bd 915
+  s_8327a06973abf7::t_c11106bf6edb94 928
+  s_8327a06973abf7::t_c291ad48aaf978 956,960
+  s_8327a06973abf7::t_08fa8ba8d0d445 827-830
+  s_8327a06973abf7::t_4a17173694b8c2 787
+  s_8327a06973abf7::t_18c94efbc3432f 733
+test/ai_review.test.js
+  s_8327a06973abf7::t_f4c3fd1572ee77 382-383
+  s_8327a06973abf7::t_eb9ad403869f38 448,456
+  s_8327a06973abf7::t_f7ba413970bd94 322-323,328,333
+  s_8327a06973abf7::t_48181e54a2586c 394
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.7",
+  "base_commit_sha": "a00167c76d5d863ac59bf9fefa605ce050f98c77",
+  "prompts": {},
+  "sessions": {
+    "s_8327a06973abf7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d6bac242-fc59-405f-b745-e19073b9a3ea",
+        "model": "deepseek-v4-pro"
+      },
+      "human_author": "陈泽枫 <zefeng.chen@gl-inet.com>"
+    }
+  }
+}
