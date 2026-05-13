@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node --test test/ai_review.test.js)",
+      "Bash(AI_REVIEW_DRY_RUN=true AI_REVIEW_PROJECT_TYPES=web node scripts/ai_review.js)",
+      "Bash(AI_REVIEW_DRY_RUN=true AI_REVIEW_PROJECT_TYPES=web AI_REVIEW_EXCLUDE_PATHS=package-lock.json,dist/** AI_REVIEW_DIFF='diff --git a/src/a.js b/src/a.js *)"
+    ]
+  }
+}
