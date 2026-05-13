@@ -1,0 +1,20 @@
+.claude/settings.local.json
+  s_8327a06973abf7::t_7902ffd7f449bc 1-4,7-9
+  s_8327a06973abf7::t_75ca29ae7dc7b7 5-6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.7",
+  "base_commit_sha": "bd7e28ae2de741aabce39ff68dd5a39d922d12ce",
+  "prompts": {},
+  "sessions": {
+    "s_8327a06973abf7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d6bac242-fc59-405f-b745-e19073b9a3ea",
+        "model": "deepseek-v4-pro"
+      },
+      "human_author": "陈泽枫 <zefeng.chen@gl-inet.com>"
+    }
+  }
+}
