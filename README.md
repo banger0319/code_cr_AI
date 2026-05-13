@@ -16,7 +16,6 @@ on:
 
 permissions:
   contents: read
-  pull-requests: read
 
 jobs:
   ai-review:
@@ -43,18 +42,20 @@ jobs:
           path: ai-review.md
 ```
 
-> **设计原则：AI review 只提供信息，不替人做决定。** 默认情况下 Action 仅生成报告，不会让流水线失败。报告中会清晰区分 Blocking / Non-Blocking 发现，由团队审查后自行判断是否需要阻断。
+> **设计原则：AI review 只提供信息，不替人做决定。** Action 仅生成报告，不会让流水线失败。报告中会清晰区分 Blocking / Non-Blocking 发现，由团队审查后自行判断。
 
 ## 大 Diff 处理
 
 大 diff 处理是内部实现细节，最终用户只会看到整理后的完整报告：
 
 - 内部按文件和大小拆分 diff，降低模型超时概率。
-- 默认最多处理 `20` 个内部分片，超出时最终报告提示”部分 diff 未被审查”。
+- 默认最多处理 `20` 个内部分片，超出时最终报告提示"部分 diff 未被审查"。
 - 默认并发请求模型：`3`。
 - 默认模型请求超时：`600` 秒。
+- 模型请求限流时最多重试 `5` 次（内置，不可配置）。
 - 最终报告统一整理为 `Summary`、`Blocking Findings`、`Non-Blocking Findings`、`Notes`。
-- 如果需要让 AI review 自动阻断流水线，可配置 `fail-on-findings: 'true'`：当报告中出现 `Blocking: true` 时 Action 退出码为 1。
+- Action **不会**因为发现 Blocking 问题而让流水线失败，始终走完完整审查流程。
+- 规则集目录缺失时仅提示未读取到规则，流水线继续执行。
 
 默认不排除任何文件。无需 CR 的文件类型建议由被 CR 项目按自身情况配置：
 
@@ -96,19 +97,13 @@ AI_REVIEW_MAX_REFERENCED_FILE_BYTES=12000
 - `project-types: web` 会读取 `rulesets/web` 下所有 `.md` 文件，包括子目录。
 - 加载顺序是：项目类型规则 → `extra-rulesets`。
 - `rulesets-dir` 默认指向本 Action 仓库的 `rulesets`，也可以改成调用方仓库内的规则目录。
+- 规则集目录缺失时，仅提示未读取到规则，**不会导致流水线失败**。
 
 ## 阻断条件
 
-**默认行为：不阻断。** Action 始终生成完整报告，但不会让流水线失败。团队可以在 PR 中审查报告后自行决定是否合入。
+Action **始终生成完整报告，永远不会让流水线失败**。报告中的 Blocking / Non-Blocking 区分仅供团队审查时参考。
 
-如果团队希望在 CI 中自动拦截高危发现，可以显式开启：
-
-```yaml
-with:
-  fail-on-findings: 'true'
-```
-
-阻断判断由规则目录下的 `blocking.md` 描述，而非严重等级直接决定：
+阻断判断由规则目录下的 `blocking.md` 描述：
 
 ```text
 rulesets/web/blocking.md
@@ -123,29 +118,31 @@ Blocking: true|false
 Severity: P0|P1|P2|P3
 ```
 
-当 `fail-on-findings: 'true'` 时，报告中出现 `Blocking: true` 则 Action 退出码为 1。`Severity` 只用于展示，不直接决定是否阻断。
+## Skills 技能系统
 
-即使不开启阻断，报告也会清晰区分 Blocking / Non-Blocking 发现，方便团队快速定位高危问题。
+规则目录下的 `skills/` 子目录可以存放专项技能文件，模型在审查代码时自动匹配并应用。详见 [OPERATIONS_MANUAL.md](OPERATIONS_MANUAL.md)。
 
 ## 规则目录组织建议
 
 技术栈文件夹下可以同时放强规则和专项能力文档，例如 Flutter：
 
 ```text
-rulesets/flutter/blocking.md
-rulesets/flutter/review.md
-rulesets/flutter/skills/flutter-fix-layout-issues/SKILL.md
-rulesets/flutter/performance.md
+rulesets/flutter/
+├── blocking.md
+├── review.md
+└── skills/
+    └── flutter-fix-layout-issues/
+        └── SKILL.md
 ```
 
-脚本不会区分“基础规则”和“专项能力文档”，只会递归读取 `rulesets/flutter/**/*.md`，全部作为评审规范发送给模型。
+脚本递归读取 `rulesets/flutter/**/*.md`，全部作为评审规范发送给模型。包含 `/skills/` 路径的文件按 Skill 格式解析（需 YAML frontmatter），其余作为普通规则。
 
 ## 输出
 
 CR 结果会同时出现在三个地方：
 
 1. GitHub Actions 日志中，搜索 `AI REVIEW REPORT START` 可以直接查看完整报告。
-2. GitHub Actions run 的 Step Summary 中，如果当前 runner 提供 `GITHUB_STEP_SUMMARY`。
+2. GitHub Actions run 的 Step Summary 中（`GITHUB_STEP_SUMMARY`）。
 3. `ai-review.md` artifact 中，适合下载归档。
 
 ## 输入参数
@@ -166,10 +163,4 @@ CR 结果会同时出现在三个地方：
 | `timeout-seconds` | `600` | 单次模型请求超时时间。 |
 | `exclude-paths` | 空 | 逗号分隔的过滤 glob，由被 CR 项目按需配置。 |
 | `output` | `ai-review.md` | 产物报告路径。 |
-| `fail-on-findings` | `false` | 是否在报告出现 `Blocking: true` 时让 action 失败。默认不阻断，由团队审查后自行决定。 |
-| `strict-rulesets` | `false` | 规则集目录缺失时是否失败。 |
 | `dry-run` | `false` | 只验证规则、diff 分片和过滤，不调用模型。 |
-| `reporter` | `summary,artifact` | 输出方式，逗号分隔：`summary`（Step Summary）、`artifact`（ai-review.md）、`pr-comment`（PR 评论）。 |
-| `github-token` | `${{ github.token }}` | 用于 PR 评论的 GitHub Token。 |
-| `retry-count` | `2` | 模型请求遇到 429/5xx 时的最大重试次数。 |
-| `fail-mode` | `fail-open` | 脚本自身出错时的策略：`fail-open`（仅 warning）、`fail-closed`（退出码 2）。 |
