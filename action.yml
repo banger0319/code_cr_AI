@@ -59,34 +59,10 @@ inputs:
     description: Review report output path.
     required: false
     default: ai-review.md
-  fail-on-findings:
-    description: Whether to fail when P0/P1 findings are detected.
-    required: false
-    default: 'false'
-  strict-rulesets:
-    description: Whether missing ruleset directories should fail the action.
-    required: false
-    default: 'false'
   dry-run:
     description: Validate diff and rulesets without calling the model.
     required: false
     default: 'false'
-  reporter:
-    description: Output mode - summary, artifact, pr-comment (comma-separated).
-    required: false
-    default: summary,artifact
-  github-token:
-    description: GitHub token for PR comments or review annotations.
-    required: false
-    default: ${{ github.token }}
-  retry-count:
-    description: Max retries for 429/5xx model errors.
-    required: false
-    default: '2'
-  fail-mode:
-    description: fail-open (warn on error) or fail-closed (fail on error).
-    required: false
-    default: fail-open
 
 runs:
   using: composite
@@ -112,11 +88,5 @@ runs:
         AI_REVIEW_EXCLUDE_PATHS_INPUT: ${{ inputs.exclude-paths }}
         AI_REVIEW_TIMEOUT_SECONDS_INPUT: ${{ inputs.timeout-seconds }}
         AI_REVIEW_OUTPUT_INPUT: ${{ inputs.output }}
-        AI_REVIEW_FAIL_ON_FINDINGS_INPUT: ${{ inputs.fail-on-findings }}
-        AI_REVIEW_STRICT_RULESETS_INPUT: ${{ inputs.strict-rulesets }}
         AI_REVIEW_DRY_RUN_INPUT: ${{ inputs.dry-run }}
-        AI_REVIEW_REPORTER_INPUT: ${{ inputs.reporter }}
-        AI_REVIEW_GITHUB_TOKEN_INPUT: ${{ inputs.github-token }}
-        AI_REVIEW_RETRY_COUNT_INPUT: ${{ inputs.retry-count }}
-        AI_REVIEW_FAIL_MODE_INPUT: ${{ inputs.fail-mode }}
       run: node "${{ github.action_path }}/scripts/ai_review.js"
