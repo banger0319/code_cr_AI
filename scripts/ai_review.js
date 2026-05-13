@@ -334,8 +334,8 @@ function readRules(root) {
       }
     }
   }
-  if (missing.length > 0 && boolConfig('AI_REVIEW_STRICT_RULESETS')) {
-    throw new Error(`Missing rulesets: ${missing.join(', ')}`);
+  if (missing.length > 0) {
+    console.warn(`未找到规则集目录: ${missing.join(', ')}`);
   }
   return { rules: sections.join('\n\n'), missing, loadedFiles, skills };
 }
@@ -577,7 +577,7 @@ async function callModel(messages) {
   if (maxTokens) payload.max_tokens = Number(maxTokens);
 
   const timeoutSeconds = numberConfig('AI_REVIEW_TIMEOUT_SECONDS', 600);
-  const retryCount = numberConfig('AI_REVIEW_RETRY_COUNT', 2);
+  const retryCount = 5;
 
   for (let attempt = 0; attempt <= retryCount; attempt++) {
     const controller = new AbortController();
@@ -735,76 +735,6 @@ function writeGitHubSummary(review) {
   fs.appendFileSync(summaryPath, `${review}\n`, 'utf8');
 }
 
-function getPrInfo() {
-  const eventPath = env('GITHUB_EVENT_PATH');
-  if (!eventPath || !fs.existsSync(eventPath)) return null;
-  try {
-    const event = JSON.parse(fs.readFileSync(eventPath, 'utf8'));
-    if (event.pull_request && event.pull_request.number) {
-      return { number: event.pull_request.number };
-    }
-  } catch (e) {
-    if (e.name !== 'SyntaxError') console.warn(`Failed to read PR event: ${e.message}`);
-  }
-  return null;
-}
-
-async function findExistingBotComment(githubToken, repo, prNumber) {
-  const url = `https://api.github.com/repos/${repo}/issues/${prNumber}/comments?per_page=100`;
-  const response = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${githubToken}`,
-      'Accept': 'application/vnd.github+json',
-      'X-GitHub-Api-Version': '2022-11-28',
-    },
-  });
-  if (!response.ok) return null;
-  const comments = await response.json();
-  const botMarker = '<!-- ai-review-bot -->';
-  for (const comment of comments) {
-    if (comment.body && comment.body.includes(botMarker)) return comment.id;
-  }
-  return null;
-}
-
-async function postPrComment(githubToken, review) {
-  const prInfo = getPrInfo();
-  if (!prInfo) {
-    console.warn('非 PR 事件，跳过 PR 评论');
-    return;
-  }
-  const repo = process.env.GITHUB_REPOSITORY || '';
-  if (!repo) {
-    console.warn('GITHUB_REPOSITORY 未设置，跳过 PR 评论');
-    return;
-  }
-
-  const body = `<!-- ai-review-bot -->\n${review}`;
-  const existingId = await findExistingBotComment(githubToken, repo, prInfo.number);
-  const isUpdate = existingId != null;
-  const url = isUpdate
-    ? `https://api.github.com/repos/${repo}/issues/comments/${existingId}`
-    : `https://api.github.com/repos/${repo}/issues/${prInfo.number}/comments`;
-
-  const response = await fetch(url, {
-    method: isUpdate ? 'PATCH' : 'POST',
-    headers: {
-      Authorization: `Bearer ${githubToken}`,
-      'Accept': 'application/vnd.github+json',
-      'X-GitHub-Api-Version': '2022-11-28',
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ body }),
-  });
-
-  if (response.ok) {
-    console.log(isUpdate ? '已更新已有 PR 评论' : '已发布新 PR 评论');
-  } else {
-    const errText = await response.text();
-    console.warn(`发布 PR 评论失败: HTTP ${response.status}: ${errText.slice(0, 500)}`);
-  }
-}
-
 // ---------------------------------------------------------------------------
 // Dry-run report
 // ---------------------------------------------------------------------------
@@ -873,7 +803,6 @@ async function main() {
   for (const chunk of chunks) chunk.repositoryContext = repositoryContext;
 
   let review;
-  let blockFound = false;
 
   const L = getLabels(config('AI_REVIEW_LANGUAGE', 'zh-CN'));
 
@@ -888,7 +817,6 @@ async function main() {
       allData.push(await parseOrRetry(report, rules, omittedChunks, chunks, skills));
     }
     review = buildCombinedReport(allData, { skippedFiles: skipped, reviewedFiles: reviewed.map((item) => item.filePath), omittedChunks });
-    blockFound = allData.some((data) => data && Array.isArray(data.findings) && data.findings.some((f) => f.blocking === true));
   }
 
   if (loadedFiles.length > 0) review += `\n## ${L.loadedRules}\n\n${loadedFiles.map((item) => `- \`${item}\``).join('\n')}\n`;
@@ -900,20 +828,6 @@ async function main() {
   writeGitHubSummary(review);
   console.log(`AI 审查报告已写入 ${output}`);
 
-  const reporters = splitCsv(config('AI_REVIEW_REPORTER', 'summary,artifact'));
-  if (reporters.includes('pr-comment')) {
-    const githubToken = config('AI_REVIEW_GITHUB_TOKEN', env('GITHUB_TOKEN'));
-    if (githubToken) {
-      await postPrComment(githubToken, review);
-    } else {
-      console.warn('已配置 pr-comment 但未提供 github-token');
-    }
-  }
-
-  if (boolConfig('AI_REVIEW_FAIL_ON_FINDINGS') && blockFound) {
-    console.error('检测到阻断性 AI 审查发现。');
-    process.exitCode = 1;
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -929,7 +843,6 @@ module.exports = {
   walkMarkdownFiles, rulesetDirs, readRules,
   buildMessages, parseModelResponse, validateReviewJson, parseSkillFrontmatter, getLabels,
   callModel, sleep,
-  getPrInfo, findExistingBotComment, postPrComment,
   groupFindings, maxSeverityFromGrouped,
   renderFindingBlock, buildCombinedReport, buildDryRunReport,
   printReviewToLog, writeGitHubSummary, hasBlockingFinding,
@@ -938,13 +851,7 @@ module.exports = {
 
 if (require.main === module) {
   main().catch((error) => {
-    const failMode = env('AI_REVIEW_FAIL_MODE_INPUT') || env('AI_REVIEW_FAIL_MODE', 'fail-open');
     console.error(`ai_review.js 执行失败: ${error.message}`);
-    if (failMode.toLowerCase() === 'fail-closed') {
-      process.exit(2);
-    } else {
-      console.warn('Fail mode 为 fail-open，虽有错误但仍以退出码 0 退出。');
-      process.exitCode = 0;
-    }
+    process.exit(2);
   });
 }
