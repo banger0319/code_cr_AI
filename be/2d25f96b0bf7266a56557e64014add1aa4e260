@@ -1,0 +1,19 @@
+rulesets/flutter/review.md
+  s_8327a06973abf7::t_8819ec9e7cf794 1-10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.7",
+  "base_commit_sha": "be2d25f96b0bf7266a56557e64014add1aa4e260",
+  "prompts": {},
+  "sessions": {
+    "s_8327a06973abf7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d6bac242-fc59-405f-b745-e19073b9a3ea",
+        "model": "deepseek-v4-pro"
+      },
+      "human_author": "陈泽枫 <zefeng.chen@gl-inet.com>"
+    }
+  }
+}
